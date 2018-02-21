@@ -338,22 +338,18 @@ def build_data(dn, vocab, hlen, mask=False, padlen=0, hstop={}, skip_concept=Fal
     print(fc)
     return trp_data, tep_data, pp_data
 
-def build_train_test(cdn='/n/data1/hms/dbmi/zaklab/yluo/semrel', hlen = defaultdict(lambda:defaultdict(float)), padlen=0, fnstop=None, skip_concept=False, pip_reorder=False):
+def build_train_test(cdn='/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets/i2b2-2010/', hlen = defaultdict(lambda:defaultdict(float)), padlen=0, fnstop=None, skip_concept=False, pip_reorder=False):
     hstop = {}; vocab = defaultdict(float)
     if fnstop != None:
         hstop=load_stoplist(fnstop)
-    trp_upmcp_tr, tep_upmcp_tr, pp_upmcp_tr = build_data('%s/Relation_Challenge_Data/Released/concept_assertion_relation_training/upmcp' % (cdn), vocab, hlen, mask=True, padlen=padlen, hstop=hstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
-    print('upmcp_tr %d' % (len(trp_upmcp_tr)))
-    trp_upmcd_tr, tep_upmcd_tr, pp_upmcd_tr = build_data('%s/Relation_Challenge_Data/Released/concept_assertion_relation_training/upmcd' % (cdn), vocab, hlen, mask=True, padlen=padlen, hstop=hstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
-    print('upmcd_tr %d' % (len(trp_upmcd_tr)))
-    trp_beth_tr, tep_beth_tr, pp_beth_tr = build_data('%s/Relation_Challenge_Data/Released/concept_assertion_relation_training/beth' % (cdn), vocab, hlen, mask=True, padlen=padlen, hstop=hstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
+    trp_beth_tr, tep_beth_tr, pp_beth_tr = build_data('%s/concept_assertion_relation_training_data/beth' % (cdn), vocab, hlen, mask=True, padlen=padlen, hstop=hstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
     print('beth_tr %d' % (len(trp_beth_tr)))
-    trp_partners_tr, tep_partners_tr, pp_partners_tr = build_data('%s/Relation_Challenge_Data/Released/concept_assertion_relation_training/partners' % (cdn), vocab, hlen, padlen=padlen, hstop=hstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
+    trp_partners_tr, tep_partners_tr, pp_partners_tr = build_data('%s/concept_assertion_relation_training_data/partners' % (cdn), vocab, hlen, padlen=padlen, hstop=hstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
     print('partners_tr %d' % (len(trp_partners_tr)))
-    trp_rel_te, tep_rel_te, pp_rel_te = build_data('%s/Relation_Challenge_Data/Released/concept_assertion_relation_test' % (cdn), vocab, hlen, mask=True, padlen=padlen, hstop=hstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
-    trp_rel_tr = trp_upmcp_tr + trp_upmcd_tr + trp_beth_tr + trp_partners_tr
-    tep_rel_tr = tep_upmcp_tr + tep_upmcd_tr + tep_beth_tr + tep_partners_tr
-    pp_rel_tr = pp_upmcp_tr + pp_upmcd_tr + pp_beth_tr + pp_partners_tr
+    trp_rel_te, tep_rel_te, pp_rel_te = build_data('%s/reference_standard_for_test_data' % (cdn), vocab, hlen, mask=True, padlen=padlen, hstop=hstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
+    trp_rel_tr = trp_beth_tr + trp_partners_tr
+    tep_rel_tr = tep_beth_tr + tep_partners_tr
+    pp_rel_tr = pp_beth_tr + pp_partners_tr
     
     return trp_rel_tr, tep_rel_tr, pp_rel_tr, trp_rel_te, tep_rel_te, pp_rel_te, vocab, hlen
 
@@ -375,6 +371,6 @@ def embed_train_test(fnem, fnwid='../data/vocab.txt', fndata='../data/semrel.p',
     # the saved data are lists of relation dicts, with keys c1, c2 ,etc.
     cPickle.dump([trp_rel_tr, tep_rel_tr, pp_rel_tr, trp_rel_te, tep_rel_te, pp_rel_te, vocab, dict(hlen), mem, hwoov, hwid], open(fndata, "wb"))
     print "dataset created!"
-    return mem, hwoov, hwid;
+    return mem, hwoov, hwid
 
 

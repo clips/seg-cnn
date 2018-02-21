@@ -7,13 +7,14 @@ __revision__="0.5"
 import cPickle
 import numpy as np
 from collections import defaultdict, OrderedDict
+import os
+os.environ["THEANO_FLAGS"] = "mode=FAST_RUN,device=gpu,floatX=float32"
 import theano
 import theano.tensor as T
 import re
 import warnings
 import sys
 import time
-import os
 import stats_util as su
 warnings.filterwarnings("ignore")   
 
@@ -488,7 +489,7 @@ if __name__=="__main__":
         
     task = sys.argv[6]
     
-    fndata = '../data/semrel_pp/semrel_pp%s_pad%s.p' % (img_w, pad)
+    fndata = '../data/semrel_pp%s_pad%s.p' % (img_w, pad)
     fdata = open(fndata,"rb")
     x = cPickle.load(fdata)
     fdata.close()

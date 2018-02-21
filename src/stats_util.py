@@ -19,7 +19,7 @@ def confMat(gt, mc, nc):
     cm = np.zeros((nc, nc)) ## gt as rows
     for i in lcgt:
         for j in lcmc:
-            cm[i,j] = np.sum((gt==i) * (mc==j))
+            cm[i,int(j)] = np.sum((gt==i) * (mc==j))
     return (cm)
 
 

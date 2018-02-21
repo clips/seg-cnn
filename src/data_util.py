@@ -14,7 +14,7 @@ import csv
 import copy
 import sys
 
-def removeNonAscii(s): 
+def removeNonAscii(s):
     """
     s should be a utf-8 encoded string
     """
@@ -77,7 +77,7 @@ def indexEmbedding(fnem, fnwid, var = 0.25, rand_oov=False):
         cnt += 1
     fwid.close()
     fem = open(fnem, 'r')
-    femr = csv.reader(fem, delimiter=' ')
+    femr = csv.reader(fem, delimiter=' ', quoting=csv.QUOTE_NONE)
     lc = 0; vsize = 0
     hwoov = copy.deepcopy(hwid)
     for row in femr:

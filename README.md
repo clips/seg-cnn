@@ -6,11 +6,11 @@ Code is written in Python (2.7) and requires Theano (0.9).
 ### Data Preprocessing
 To process the raw data, run
 ```
-python data.py 
+python datagen.py 
 ```
 
 This is a wrapper code calling `cnn_preprocess.embed_train_test()` with arguments specifying word embedding dimensions (e.g., 200) and padding length (e.g., 7). 
-This will create a pickle object (e.g., `semrel_pp200_pad7.p`) in the directory 'data/semrel_pp', which contains the dataset
+This will create a pickle object (e.g., `semrel_pp200_pad7.p`) in the directory 'data/', which contains the dataset
 with the right components to be used by `cnn_semrel.py`.
 
 
