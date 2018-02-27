@@ -276,7 +276,7 @@ def train_conv_net(datasets, rel_tr, rel_te, hlen,
             err_ind = [j for j,x in enumerate(test_errors) if x==1]
             test_cm = su.confMat(y_te, test_pred, hidden_units[1])
             print('\n'.join([''.join(['{:10}'.format(int(item)) for item in row]) 
-                             for row in test_cm]))
+            for row in test_cm]))
             (pres, recs, f1s, mipre, mirec, mif) = su.cmPRF(test_cm, ncstart=1)
             print('mipre %s, mirec %s, mif %s' % (mipre, mirec, mif))
     cPickle.dump([y_te,test_pred], open(fnres, "wb"))
@@ -407,7 +407,7 @@ def merge_segs(c1, c2, prec, mid, succ, y, iid, over_sampling=False, down_sampli
             data_c = data[np.asarray(y==lab),:]
             if count > down_sampling*cnt_min:
                 data_c = data_c[rng.permutation(count)[:down_sampling*cnt_min],:]
-            if data_ds == None:
+            if data_ds is None:
                 data_ds = data_c
             else:
                 data_ds = np.vstack((data_ds, data_c))
