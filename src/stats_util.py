@@ -25,7 +25,7 @@ def confMat(gt, mc, nc):
 
 def cmPRF(cm, ncstart=0):
     # calculate precision, recall and f-measure given result output
-    # ncstart controls whether to include 
+    # ncstart controls whether to include the None category
     nc, nc2 = cm.shape
     assert nc==nc2
     pres = np.zeros(nc); recs = np.zeros(nc); f1s = np.zeros(nc)
