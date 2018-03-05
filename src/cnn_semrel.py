@@ -1,6 +1,8 @@
 """ 
 This file was extensively rewritten from the sentence CNN code at https://github.com/yoonkim/CNN_sentence by Yoon Kim
 """
+from cnn_classes import LeNetConvPoolLayer, MLPDropout
+
 __author__= """Yuan Luo (yuan.hypnos.luo@gmail.com)"""
 __revision__="0.5"
 
@@ -43,7 +45,7 @@ def make_rel_hash(drel):
         hrel[rel['iid']] = rel
     return hrel;
        
-def train_conv_net(datasets, rel_tr, rel_te, hlen,
+def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
                    U, # yluo: embedding matrix
                    fnres,
                    img_w=300, 
@@ -69,6 +71,7 @@ def train_conv_net(datasets, rel_tr, rel_te, hlen,
     """
     hrel_tr = make_rel_hash(rel_tr)
     hrel_te = make_rel_hash(rel_te)
+    hrel_de = make_rel_hash(rel_de)
     rng = np.random.RandomState()
     img_h_tot = len(datasets[0][0])-2
     pad = max(filter_hs) - 1
@@ -149,7 +152,8 @@ def train_conv_net(datasets, rel_tr, rel_te, hlen,
     #extra data (at random)
     
     tr_size = datasets[0].shape[0]
-    hi_seg = datasets[2]
+    de_size = datasets[2].shape[0]
+    hi_seg = datasets[3]
     print(hi_seg)
     c1s, c1e = hi_seg['c1']; c2s, c2e = hi_seg['c2']; mids, mide = hi_seg['mid']
     precs, prece = hi_seg['prec']; succs, succe = hi_seg['succ']
@@ -163,8 +167,19 @@ def train_conv_net(datasets, rel_tr, rel_te, hlen,
         new_data = datasets[0]
     new_data = rng.permutation(new_data)
     n_batches = new_data.shape[0]/batch_size
-    n_train_batches = int(np.round(n_batches*0.9))
-    
+    #n_train_batches = int(np.round(n_batches*0.9))
+    n_train_batches = n_batches
+
+    if de_size % batch_size > 0:
+        extra_data_num = batch_size - de_size % batch_size
+        dev_set = rng.permutation(datasets[2])
+        extra_data = dev_set[:extra_data_num]
+        new_data_de = np.append(datasets[2],extra_data,axis=0)
+    else:
+        new_data_de = datasets[2]
+    new_data_de = rng.permutation(new_data_de)
+    n_dev_batches = new_data_de.shape[0]/batch_size
+
     #divide train set into train/val sets
     c1_te = datasets[1][:, c1s:c1e]
     c2_te = datasets[1][:, c2s:c2e]
@@ -173,27 +188,25 @@ def train_conv_net(datasets, rel_tr, rel_te, hlen,
     succ_te = datasets[1][:, succs:succe]
     test_set = datasets[1]
     y_te = np.asarray(test_set[:,yi],"int32")
-    
-    train_set = new_data[:n_train_batches*batch_size,:]
-    val_set = new_data[n_train_batches*batch_size:,:]     
-    x_tr, y_tr = shared_dataset((train_set[:,:img_h_tot], train_set[:,-1]))
-    x_val, y_val = shared_dataset((val_set[:,:img_h_tot], val_set[:,-1]))
-    iid_tr = train_set[:,idi].flatten()
-    iid_val = val_set[:,idi].flatten()
-    iid_te = test_set[:,idi].flatten()
-    print('len iid_val %d' % (len(iid_val)))
 
-    n_val_batches = n_batches - n_train_batches
-    
-    #compile theano functions to get train/val/test errors    
-    val_model = theano.function([index], classifier.preds(y),
+    train_set = new_data[:n_train_batches*batch_size,:]
+    dev_set = new_data_de[:n_dev_batches*batch_size:,:]
+    x_tr, y_tr = shared_dataset((train_set[:,:img_h_tot], train_set[:,-1]))
+    x_de, y_de = shared_dataset((dev_set[:,:img_h_tot], dev_set[:,-1]))
+    iid_tr = train_set[:,idi].flatten()
+    iid_de = dev_set[:,idi].flatten()
+    iid_te = test_set[:,idi].flatten()
+    print('len iid_de %d' % (len(iid_de)))
+
+    #compile theano functions to get train/val/test errors
+    dev_model = theano.function([index], classifier.preds(y),
         givens={
-            c1: x_val[index*batch_size: (index+1)*batch_size, c1s:c1e],
-            c2: x_val[index*batch_size: (index+1)*batch_size, c2s:c2e],
-            prec: x_val[index*batch_size: (index+1)*batch_size, precs:prece],
-            mid: x_val[index*batch_size: (index+1)*batch_size, mids:mide],
-            succ: x_val[index*batch_size: (index+1)*batch_size, succs:succe],
-            y: y_val[index*batch_size: (index+1)*batch_size],
+            c1: x_de[index*batch_size: (index+1)*batch_size, c1s:c1e],
+            c2: x_de[index*batch_size: (index+1)*batch_size, c2s:c2e],
+            prec: x_de[index*batch_size: (index+1)*batch_size, precs:prece],
+            mid: x_de[index*batch_size: (index+1)*batch_size, mids:mide],
+            succ: x_de[index*batch_size: (index+1)*batch_size, succs:succe],
+            y: y_de[index*batch_size: (index+1)*batch_size],
         },
         allow_input_downcast=True, on_unused_input='warn')
     # this test_model is batch test model for train
@@ -239,7 +252,7 @@ def train_conv_net(datasets, rel_tr, rel_te, hlen,
     #start training over mini-batches
     print '... training'
     epoch = 0
-    best_val_perf = 0
+    best_dev_perf = 0
     test_perf = 0       
     cost_epoch = 0    
     while (epoch < n_epochs):
@@ -255,22 +268,22 @@ def train_conv_net(datasets, rel_tr, rel_te, hlen,
                 set_zero(zero_vec)
         train_losses = [np.mean(test_model(i)) for i in xrange(n_train_batches)]
         train_perf = 1 - np.mean(train_losses)
-        val_preds = np.asarray([])
-        for i in xrange(n_val_batches):
-            val_sb_preds = val_model(i)
-            y_sb = y_val[i*batch_size:(i+1)*batch_size].eval()
-            val_sb_errors = val_sb_preds != y_sb
-            err_ind = [j for j,x in enumerate(val_sb_errors) if x==1]
-            val_sb = iid_val[i*batch_size:(i+1)*batch_size]
-            val_preds = np.append(val_preds, val_sb_preds)
+        dev_preds = np.asarray([])
+        for i in xrange(n_dev_batches):
+            dev_sb_preds = dev_model(i)
+            y_sb = y_de[i*batch_size:(i+1)*batch_size].eval()
+            dev_sb_errors = dev_sb_preds != y_sb
+            err_ind = [j for j,x in enumerate(dev_sb_errors) if x==1]
+            dev_sb = iid_de[i*batch_size:(i+1)*batch_size]
+            dev_preds = np.append(dev_preds, dev_sb_preds)
 
-        val_perf = 1- np.mean(y_val.eval() != val_preds)
-        val_cm = su.confMat(y_val.eval(), val_preds, hidden_units[1])
+        dev_perf = 1- np.mean(y_de.eval() != dev_preds)
+        dev_cm = su.confMat(y_de.eval(), dev_preds, hidden_units[1])
 
-        (val_pres, val_recs, val_f1s, val_mipre, val_mirec, val_mif) = su.cmPRF(val_cm, ncstart=1)
-        print('epoch: %i, training time: %.2f secs, train perf: %.2f %%, mif: %.2f %%' % (epoch, time.time()-start_time, train_perf * 100., val_mif*100.)) 
-        if val_mif >= best_val_perf:
-            best_val_perf = val_mif
+        (dev_pres, dev_recs, dev_f1s, dev_mipre, dev_mirec, dev_mif) = su.cmPRF(dev_cm, ncstart=1)
+        print('epoch: %i, training time: %.2f secs, train perf: %.2f %%, dev_mipre: %.2f %%, dev_mirec: %.2f %%, dev_mif: %.2f %%' % (epoch, time.time()-start_time, train_perf * 100., dev_mipre*100., dev_mirec*100., dev_mif*100.))
+        if dev_mif >= best_dev_perf:
+            best_dev_perf = dev_mif
             test_pred = test_model_all(c1_te,c2_te,prec_te,mid_te,succ_te)
             test_errors = test_pred != y_te
             err_ind = [j for j,x in enumerate(test_errors) if x==1]
@@ -278,9 +291,12 @@ def train_conv_net(datasets, rel_tr, rel_te, hlen,
             print('\n'.join([''.join(['{:10}'.format(int(item)) for item in row]) 
             for row in test_cm]))
             (pres, recs, f1s, mipre, mirec, mif) = su.cmPRF(test_cm, ncstart=1)
+            mipre_de = dev_mipre
+            mirec_de = dev_mirec
+            mif_de = dev_mif
             print('mipre %s, mirec %s, mif %s' % (mipre, mirec, mif))
     cPickle.dump([y_te,test_pred], open(fnres, "wb"))
-    return (mipre, mirec, mif)
+    return (mipre, mirec, mif, mipre_de, mirec_de, mif_de)
 
 def shared_dataset(data_xy, iid=None, borrow=True):
         """ Function that loads the dataset into shared variables
@@ -415,17 +431,17 @@ def merge_segs(c1, c2, prec, mid, succ, y, iid, over_sampling=False, down_sampli
         print('down-sampled dist %s %s' % (np.unique(data[:,hi_seg['y']], return_counts=True)))
     return data, hi_seg;
 
-def make_idx_data_train_test(rel_tr, rel_te, word_idx_map, hlen, hrel, k=300, filter_h=5, down_sampling=None):
+def make_idx_data_train_test_dev(rel_tr, rel_te, rel_de, word_idx_map, hlen, hrel, k=300, filter_h=5, down_sampling=None):
     """
     Transforms sentences into a 2-d matrix.
     """
-    c1_tr, c1_te = [], []
-    c2_tr, c2_te = [], []
-    prec_tr, prec_te = [], []
-    mid_tr, mid_te = [], []
-    succ_tr, succ_te = [], []
-    y_tr, y_te = [], []
-    iid_tr, iid_te = [], []
+    c1_tr, c1_te, c1_de = [], [], []
+    c2_tr, c2_te, c2_de = [], [], []
+    prec_tr, prec_te, prec_de = [], [], []
+    mid_tr, mid_te, mid_de = [], [], []
+    succ_tr, succ_te, succ_de = [], [], []
+    y_tr, y_te, y_de = [], [], []
+    iid_tr, iid_te, iid_de = [], [], []
     for rel in rel_tr:
         c1_tr.append( get_idx_from_segment(rel['c1'], word_idx_map, hlen['c1'], k, filter_h) )
         c2_tr.append( get_idx_from_segment(rel['c2'], word_idx_map, hlen['c2'], k, filter_h) )
@@ -440,6 +456,7 @@ def make_idx_data_train_test(rel_tr, rel_te, word_idx_map, hlen, hrel, k=300, fi
     
     c1_tr_lens = map(len, c1_tr)
     print('c1 tr len max %d, min %d' % (max(c1_tr_lens), min(c1_tr_lens)))
+
     for rel in rel_te:
         c1_te.append( get_idx_from_segment(rel['c1'], word_idx_map, hlen['c1'], k, filter_h) )
         c2_te.append( get_idx_from_segment(rel['c2'], word_idx_map, hlen['c2'], k, filter_h) )
@@ -451,15 +468,30 @@ def make_idx_data_train_test(rel_tr, rel_te, word_idx_map, hlen, hrel, k=300, fi
     print(np.unique(y_te, return_counts=True))
     y_te = np.asarray(y_te); y_te = y_te.reshape(len(y_te), 1)
     iid_te = np.asarray(iid_te); iid_te = iid_te.reshape(len(iid_te), 1)
-    
-    c1_tr = np.array(c1_tr,dtype="int"); c1_te = np.array(c1_te,dtype="int")
-    c2_tr = np.array(c2_tr,dtype="int"); c2_te = np.array(c2_te,dtype="int")
-    prec_tr = np.array(prec_tr,dtype="int"); prec_te = np.array(prec_te,dtype="int")
-    mid_tr = np.array(mid_tr,dtype="int"); mid_te = np.array(mid_te,dtype="int")
-    succ_tr = np.array(succ_tr,dtype="int"); succ_te = np.array(succ_te,dtype="int")
+
+    for rel in rel_de:
+        c1_de.append(get_idx_from_segment(rel['c1'], word_idx_map, hlen['c1'], k, filter_h))
+        c2_de.append(get_idx_from_segment(rel['c2'], word_idx_map, hlen['c2'], k, filter_h))
+        prec_de.append(get_idx_from_segment(rel['prec'], word_idx_map, hlen['prec'], k, filter_h))
+        mid_de.append(get_idx_from_segment(rel['mid'], word_idx_map, hlen['mid'], k, filter_h))
+        succ_de.append(get_idx_from_segment(rel['succ'], word_idx_map, hlen['succ'], k, filter_h))
+        y_de.append(hrel[rel['rel']])
+        iid_de.append(rel['iid'])
+    print(np.unique(y_de, return_counts=True))
+    y_de = np.asarray(y_de);
+    y_de = y_de.reshape(len(y_de), 1)
+    iid_de = np.asarray(iid_de);
+    iid_de = iid_de.reshape(len(iid_de), 1)
+
+    c1_tr = np.array(c1_tr,dtype="int"); c1_te = np.array(c1_te,dtype="int"); c1_de = np.array(c1_de,dtype="int")
+    c2_tr = np.array(c2_tr,dtype="int"); c2_te = np.array(c2_te,dtype="int"); c2_de = np.array(c2_de,dtype="int")
+    prec_tr = np.array(prec_tr,dtype="int"); prec_te = np.array(prec_te,dtype="int"); prec_de = np.array(prec_de,dtype="int")
+    mid_tr = np.array(mid_tr,dtype="int"); mid_te = np.array(mid_te,dtype="int"); mid_de = np.array(mid_de,dtype="int")
+    succ_tr = np.array(succ_tr,dtype="int"); succ_te = np.array(succ_te,dtype="int"); succ_de = np.array(succ_de,dtype="int")
     train, hi_seg_tr = merge_segs(c1_tr, c2_tr, prec_tr, mid_tr, succ_tr, y_tr, iid_tr, down_sampling=down_sampling)
     test, hi_seg_te = merge_segs(c1_te, c2_te, prec_te, mid_te, succ_te, y_te, iid_te)
-    return [train, test, hi_seg_tr, hi_seg_te]     
+    dev, hi_seg_de = merge_segs(c1_de, c2_de, prec_de, mid_de, succ_de, y_de, iid_de)
+    return [train, test, dev, hi_seg_tr, hi_seg_te, hi_seg_de]
   
    
 if __name__=="__main__":
@@ -488,12 +520,20 @@ if __name__=="__main__":
         sys.exit(1)
         
     task = sys.argv[6]
-    
+
+    n_runs = sys.argv[7]
+    mo = re.search('-n_runs(\d+)', n_runs)
+    if mo:
+        n_runs = int(mo.group(1))
+    else:
+        print('example: -n_runs1')
+        sys.exit(1)
+
     fndata = '../data/semrel_pp%s_pad%s.p' % (img_w, pad)
     fdata = open(fndata,"rb")
     x = cPickle.load(fdata)
     fdata.close()
-    trp_rel_tr, tep_rel_tr, pp_rel_tr, trp_rel_te, tep_rel_te, pp_rel_te, vocab, hlen, mem, hwoov, hwid = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10]
+    trp_rel_tr, tep_rel_tr, pp_rel_tr, trp_rel_te, tep_rel_te, pp_rel_te, trp_rel_de, tep_rel_de, pp_rel_de, vocab, hlen, mem, hwoov, hwid = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13]
     for cts in hlen.keys():
         hlen[cts]['c1'] += 2*pad
         hlen[cts]['c2'] += 2*pad
@@ -516,58 +556,104 @@ if __name__=="__main__":
     results = []
 
     if task=='-trp':
-        trp_data = make_idx_data_train_test(trp_rel_tr, trp_rel_te, hwid, hlen['problem_treatment'], htrp_rel, k=img_w, filter_h=5, down_sampling=None)
-        (mipre, mirec, mif) = train_conv_net(trp_data, trp_rel_tr, trp_rel_te,
-                                             hlen['problem_treatment'],
-                                             U,
-                                             fnres='../result/trp_img%s_nhu%s_pad%s.p' % (img_w, l1_nhu, pad),
-                                             img_w=img_w,
-                                             lr_decay=0.95,
-                                             filter_hs=[3,4,5], 
-                                             conv_non_linear="relu",
-                                             hidden_units=[l1_nhu,6], 
-                                             shuffle_batch=True, 
-                                             n_epochs=35, 
-                                             sqr_norm_lim=9,
-                                             non_static=non_static,
-                                             batch_size=50,
-                                             dropout_rate=[0.5])
-        print("msg: trp img_w: %s, l1_nhu: %s, pad: %s, mipre: %s, mirec: %s, mif: %s" % (img_w, l1_nhu, pad, mipre, mirec, mif))
+        trp_data = make_idx_data_train_test_dev(trp_rel_tr, trp_rel_te, trp_rel_de, hwid, hlen['problem_treatment'], htrp_rel, k=img_w, filter_h=5, down_sampling=None)
+        mipre_runs = []
+        mirec_runs = []
+        mif_runs = []
+        mipre_de_runs = []
+        mirec_de_runs = []
+        mif_de_runs = []
+        for n_run in range(n_runs):
+            (mipre, mirec, mif, mipre_de, mirec_de, mif_de) = train_conv_net(trp_data, trp_rel_tr, trp_rel_te, trp_rel_de,
+                                                 hlen['problem_treatment'],
+                                                 U,
+                                                 fnres='../result/trp_img%s_nhu%s_pad%s.p' % (img_w, l1_nhu, pad),
+                                                 img_w=img_w,
+                                                 lr_decay=0.95,
+                                                 filter_hs=[3,4,5],
+                                                 conv_non_linear="relu",
+                                                 hidden_units=[l1_nhu,6],
+                                                 shuffle_batch=True,
+                                                 n_epochs=35,
+                                                 sqr_norm_lim=9,
+                                                 non_static=non_static,
+                                                 batch_size=50,
+                                                 dropout_rate=[0.5])
+            print("msg: trp img_w: %s, l1_nhu: %s, pad: %s, mipre: %s, mirec: %s, mif: %s, mipre_de: %s, mirec_de: %s, mif_de: %s" % (img_w, l1_nhu, pad, mipre, mirec, mif, mipre_de, mirec_de, mif_de))
+            mipre_runs.append(mipre)
+            mirec_runs.append(mirec)
+            mif_runs.append(mif)
+            mipre_de_runs.append(mipre_de)
+            mirec_de_runs.append(mirec_de)
+            mif_de_runs.append(mif_de)
 
     if task=='-tep':
-        tep_data = make_idx_data_train_test(tep_rel_tr, tep_rel_te, hwid, hlen['problem_test'], htep_rel, k=img_w, filter_h=5)
-        (mipre, mirec, mif) = train_conv_net(tep_data,tep_rel_tr, tep_rel_te,
-                                             hlen['problem_test'],
-                                             U,
-                                             fnres='../result/tep_img%s_nhu%s_pad%s.p' % (img_w, l1_nhu, pad),
-                                             img_w=img_w,
-                                             lr_decay=0.95,
-                                             filter_hs=[3,4,5],
-                                             conv_non_linear="relu",
-                                             hidden_units=[l1_nhu,3], 
-                                             shuffle_batch=True, 
-                                             n_epochs=25, 
-                                             sqr_norm_lim=9,
-                                             non_static=non_static,
-                                             batch_size=50,
-                                             dropout_rate=[0.5])
-        print("msg: tep img_w: %s, l1_nhu: %s, pad: %s, mipre: %s, mirec: %s, mif: %s" % (img_w, l1_nhu, pad, mipre, mirec, mif))
+        tep_data = make_idx_data_train_test_dev(tep_rel_tr, tep_rel_te, tep_rel_de, hwid, hlen['problem_test'], htep_rel, k=img_w, filter_h=5)
+        mipre_runs = []
+        mirec_runs = []
+        mif_runs = []
+        mipre_de_runs = []
+        mirec_de_runs = []
+        mif_de_runs = []
+        for n_run in range(n_runs):
+            (mipre, mirec, mif, mipre_de, mirec_de, mif_de) = train_conv_net(tep_data,tep_rel_tr, tep_rel_te, tep_rel_de,
+                                                 hlen['problem_test'],
+                                                 U,
+                                                 fnres='../result/tep_img%s_nhu%s_pad%s.p' % (img_w, l1_nhu, pad),
+                                                 img_w=img_w,
+                                                 lr_decay=0.95,
+                                                 filter_hs=[3,4,5],
+                                                 conv_non_linear="relu",
+                                                 hidden_units=[l1_nhu,3],
+                                                 shuffle_batch=True,
+                                                 n_epochs=25,
+                                                 sqr_norm_lim=9,
+                                                 non_static=non_static,
+                                                 batch_size=50,
+                                                 dropout_rate=[0.5])
+            print("msg: tep img_w: %s, l1_nhu: %s, pad: %s, mipre: %s, mirec: %s, mif: %s, mipre_de: %s, mirec_de: %s, mif_de: %s" % (img_w, l1_nhu, pad, mipre, mirec, mif, mipre_de, mirec_de, mif_de))
+            mipre_runs.append(mipre)
+            mirec_runs.append(mirec)
+            mif_runs.append(mif)
+            mipre_de_runs.append(mipre_de)
+            mirec_de_runs.append(mirec_de)
+            mif_de_runs.append(mif_de)
 
     if task=='-pp':
-        pp_data = make_idx_data_train_test(pp_rel_tr, pp_rel_te, hwid, hlen['problem_problem'], hpp_rel, k=img_w, filter_h=5, down_sampling=4) 
-        (mipre, mirec, mif) = train_conv_net(pp_data, pp_rel_tr, pp_rel_te,
-                                             hlen['problem_problem'],
-                                             U,
-                                             fnres='../result/pp_img%s_nhu%s_pad%s.p' % (img_w, l1_nhu, pad),
-                                             img_w=img_w,
-                                             lr_decay=0.95,
-                                             filter_hs=[3,4,5],
-                                             conv_non_linear="relu",
-                                             hidden_units=[l1_nhu,2], 
-                                             shuffle_batch=True, 
-                                             n_epochs=35, 
-                                             sqr_norm_lim=9,
-                                             non_static=non_static,
-                                             batch_size=50,
-                                             dropout_rate=[0.5])
-        print("msg: pp img_w: %s, l1_nhu: %s, pad: %s, mipre: %s, mirec: %s, mif: %s" % (img_w, l1_nhu, pad, mipre, mirec, mif))
+        pp_data = make_idx_data_train_test_dev(pp_rel_tr, pp_rel_te, pp_rel_de, hwid, hlen['problem_problem'], hpp_rel, k=img_w, filter_h=5, down_sampling=4)
+        mipre_runs = []
+        mirec_runs = []
+        mif_runs = []
+        mipre_de_runs = []
+        mirec_de_runs = []
+        mif_de_runs = []
+        for n_run in range(n_runs):
+            (mipre, mirec, mif, mipre_de, mirec_de, mif_de) = train_conv_net(pp_data, pp_rel_tr, pp_rel_te, pp_rel_de,
+                                                 hlen['problem_problem'],
+                                                 U,
+                                                 fnres='../result/pp_img%s_nhu%s_pad%s.p' % (img_w, l1_nhu, pad),
+                                                 img_w=img_w,
+                                                 lr_decay=0.95,
+                                                 filter_hs=[3,4,5],
+                                                 conv_non_linear="relu",
+                                                 hidden_units=[l1_nhu,2],
+                                                 shuffle_batch=True,
+                                                 n_epochs=35,
+                                                 sqr_norm_lim=9,
+                                                 non_static=non_static,
+                                                 batch_size=50,
+                                                 dropout_rate=[0.5])
+            print("msg: pp img_w: %s, l1_nhu: %s, pad: %s, mipre: %s, mirec: %s, mif: %s, mipre_de: %s, mirec_de: %s, mif_de: %s" % (img_w, l1_nhu, pad, mipre, mirec, mif, mipre_de, mirec_de, mif_de))
+            mipre_runs.append(mipre)
+            mirec_runs.append(mirec)
+            mif_runs.append(mif)
+            mipre_de_runs.append(mipre_de)
+            mirec_de_runs.append(mirec_de)
+            mif_de_runs.append(mif_de)
+
+    print("Avg mipre: {}; CI95: {}".format(np.mean(mipre_runs), su.confint(mipre_runs)))
+    print("Avg mirec: {}; CI95: {}".format(np.mean(mirec_runs), su.confint(mirec_runs)))
+    print("Avg mif: {}; CI95: {}".format(np.mean(mif_runs), su.confint(mif_runs)))
+    print("Avg mipre_de: {}; CI95: {}".format(np.mean(mipre_de_runs), su.confint(mipre_de_runs)))
+    print("Avg mirec_de: {}; CI95: {}".format(np.mean(mirec_de_runs), su.confint(mirec_de_runs)))
+    print("Avg mif_de: {}; CI95: {}".format(np.mean(mif_de_runs), su.confint(mif_de_runs)))

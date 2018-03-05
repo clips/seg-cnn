@@ -9,7 +9,7 @@ To process the raw data, run
 python datagen.py 
 ```
 
-This is a wrapper code calling `cnn_preprocess.embed_train_test()` with arguments specifying word embedding dimensions (e.g., 200) and padding length (e.g., 7). 
+This is a wrapper code calling `cnn_preprocess.embed_train_test_dev()` with arguments specifying word embedding dimensions (e.g., 200) and padding length (e.g., 7). 
 This will create a pickle object (e.g., `semrel_pp200_pad7.p`) in the directory 'data/', which contains the dataset
 with the right components to be used by `cnn_semrel.py`.
 
@@ -19,7 +19,7 @@ with the right components to be used by `cnn_semrel.py`.
 GPU will result in a good 10x to 20x speed-up compared to CPU, so it is highly recommended. 
 For example:
 ```
-THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32,gcc.cxxflags=-march=corei7 python cnn_semrel.py -static -word2vec -img_w200 -l1_nhu100 -pad7 -trp
+THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python cnn_semrel.py -static -word2vec -img_w200 -l1_nhu100 -pad7 -trp -n_runs1
 ```
 
 

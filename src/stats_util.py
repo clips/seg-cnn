@@ -99,6 +99,13 @@ def randPairedSigTest(out1, out2, N=1000):
     print('rand paired sig test on mean p=%f\n' % (p))
     return p;
 
+def confint(seq):
+    """
+    Computes 95% confidence intervals.
+    :param seq: list or a numpy array with sample measurements
+    """
+    return np.mean(seq) - (1.96 * np.std(seq)), np.mean(seq) + (1.96 * np.std(seq))
+
 
 
 

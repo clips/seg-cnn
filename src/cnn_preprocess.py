@@ -1,14 +1,12 @@
 """ yluo - 05/01/2016 creation
 Preprocess i2b2/VA relations to generate data files ready to used by Seg-CNN
 """
-__author__= """Yuan Luo (yuan.hypnos.luo@gmail.com)"""
-__revision__="0.5"
+from file_util import get_file_list
 
 import numpy as np
 import cPickle
 from collections import defaultdict
-import sys, re, os
-import pandas as pd
+import re, os
 import data_util as du
 
 
@@ -338,24 +336,95 @@ def build_data(dn, vocab, hlen, mask=False, padlen=0, hstop={}, skip_concept=Fal
     print(fc)
     return trp_data, tep_data, pp_data
 
-def build_train_test(cdn='/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets/i2b2-2010/', hlen = defaultdict(lambda:defaultdict(float)), padlen=0, fnstop=None, skip_concept=False, pip_reorder=False):
+def build_train_test_dev(cdn='/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets/i2b2-2010/', hlen = defaultdict(lambda:defaultdict(float)), padlen=0, fnstop=None, skip_concept=False, pip_reorder=False):
     hstop = {}; vocab = defaultdict(float)
     if fnstop != None:
         hstop=load_stoplist(fnstop)
     trp_beth_tr, tep_beth_tr, pp_beth_tr = build_data('%s/concept_assertion_relation_training_data/beth' % (cdn), vocab, hlen, mask=True, padlen=padlen, hstop=hstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
     print('beth_tr %d' % (len(trp_beth_tr)))
+    print('beth_te %d' % (len(tep_beth_tr)))
+    print('beth_p %d' % (len(pp_beth_tr)))
+
     trp_partners_tr, tep_partners_tr, pp_partners_tr = build_data('%s/concept_assertion_relation_training_data/partners' % (cdn), vocab, hlen, padlen=padlen, hstop=hstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
     print('partners_tr %d' % (len(trp_partners_tr)))
-    trp_rel_te, tep_rel_te, pp_rel_te = build_data('%s/reference_standard_for_test_data' % (cdn), vocab, hlen, mask=True, padlen=padlen, hstop=hstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
-    trp_rel_tr = trp_beth_tr + trp_partners_tr
-    tep_rel_tr = tep_beth_tr + tep_partners_tr
-    pp_rel_tr = pp_beth_tr + pp_partners_tr
+    print('partners_te %d' % (len(tep_partners_tr)))
+    print('partners_p %d' % (len(pp_partners_tr)))
+
+    trp_fromtest_tr, tep_fromtest_tr, pp_fromtest_tr = build_data('%s/concept_assertion_relation_training_data/from_test' % (cdn), vocab,
+                                                      hlen, mask=True, padlen=padlen, hstop=hstop,
+                                                      skip_concept=skip_concept, pip_reorder=pip_reorder)
+    print('fromtest_tr %d' % (len(trp_fromtest_tr)))
+    print('fromtest_te %d' % (len(tep_fromtest_tr)))
+    print('fromtest_p %d' % (len(pp_fromtest_tr)))
+
+    trp_rel_te, tep_rel_te, pp_rel_te = build_data('%s/reference_standard_for_test_data' % (cdn), vocab, hlen,
+                                                   mask=True, padlen=padlen, hstop=hstop, skip_concept=skip_concept,
+                                                   pip_reorder=pip_reorder)
+    print('test_tr %d' % (len(trp_rel_te)))
+    print('test_te %d' % (len(tep_rel_te)))
+    print('test_p %d' % (len(pp_rel_te)))
+
+    trp_rel_de, tep_rel_de, pp_rel_de = build_data('%s/concept_assertion_relation_dev_data' % (cdn), vocab, hlen,
+                                                   mask=True, padlen=padlen, hstop=hstop, skip_concept=skip_concept,
+                                                   pip_reorder=pip_reorder)
+    print('dev_tr %d' % (len(trp_rel_de)))
+    print('dev_te %d' % (len(tep_rel_de)))
+    print('dev_p %d' % (len(pp_rel_de)))
+
+    trp_rel_tr = trp_beth_tr + trp_partners_tr + trp_fromtest_tr
+    tep_rel_tr = tep_beth_tr + tep_partners_tr + tep_fromtest_tr
+    pp_rel_tr = pp_beth_tr + pp_partners_tr + pp_fromtest_tr
     
-    return trp_rel_tr, tep_rel_tr, pp_rel_tr, trp_rel_te, tep_rel_te, pp_rel_te, vocab, hlen
+    return trp_rel_tr, tep_rel_tr, pp_rel_tr, trp_rel_te, tep_rel_te, pp_rel_te, trp_rel_de, tep_rel_de, pp_rel_de, vocab, hlen
 
 
-def embed_train_test(fnem, fnwid='../data/vocab.txt', fndata='../data/semrel.p', padlen=0, fnstop=None, skip_concept=True, pip_reorder=False, binEmb=False):
-    trp_rel_tr, tep_rel_tr, pp_rel_tr, trp_rel_te, tep_rel_te, pp_rel_te, vocab, hlen = build_train_test(padlen=padlen, fnstop=fnstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
+def sample_fn_test(cdn='/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets/i2b2-2010/', n_to_train=102, n_to_dev=68):
+    """
+    Sample n_to_* filenames from test and move them to train/dev.
+    :param cdn: test data directory
+    :param n_to_train: n of filenames to sample from test and move to train
+    :param n_to_dev: n of filenames to sample from test and move to dev
+    """
+    np.random.seed(1234)
+    fns = sorted(get_file_list(cdn + "reference_standard_for_test_data/txt/"))
+    assert len(fns) == 256
+
+    new_train_dir = cdn + "concept_assertion_relation_training_data/from_test/"
+    if not os.path.exists(new_train_dir):
+        os.makedirs(new_train_dir + "txt/")
+        os.makedirs(new_train_dir + "ast/")
+        os.makedirs(new_train_dir + "concept/")
+        os.makedirs(new_train_dir + "rel/")
+
+    new_dev_dir = cdn + "concept_assertion_relation_dev_data/"
+    if not os.path.exists(new_dev_dir):
+        os.makedirs(new_dev_dir + "txt/")
+        os.makedirs(new_dev_dir + "ast/")
+        os.makedirs(new_dev_dir + "concept/")
+        os.makedirs(new_dev_dir + "rel/")
+
+    sample_fns = np.random.choice(fns, n_to_train + n_to_dev, replace=False)
+    print("moving to train")
+    for fn in sample_fns[:n_to_train]:
+        base_fn = os.path.basename(fn)
+        print("moving {}".format(base_fn))
+        os.rename(cdn + "reference_standard_for_test_data/txt/{}".format(base_fn), new_train_dir + "txt/" + base_fn)
+        os.rename(cdn + "reference_standard_for_test_data/ast/{}".format(os.path.splitext(base_fn)[0] + ".ast"), new_train_dir + "ast/" + os.path.splitext(base_fn)[0] + ".ast")
+        os.rename(cdn + "reference_standard_for_test_data/concept/{}".format(os.path.splitext(base_fn)[0] + ".con"), new_train_dir + "concept/" + os.path.splitext(base_fn)[0] + ".con")
+        os.rename(cdn + "reference_standard_for_test_data/rel/{}".format(os.path.splitext(base_fn)[0] + ".rel"), new_train_dir + "rel/" + os.path.splitext(base_fn)[0] + ".rel")
+
+    print("moving to dev")
+    for fn in sample_fns[n_to_train:]:
+        base_fn = os.path.basename(fn)
+        print("moving {}".format(base_fn))
+        os.rename(cdn + "reference_standard_for_test_data/txt/{}".format(base_fn), new_dev_dir + "txt/" + base_fn)
+        os.rename(cdn + "reference_standard_for_test_data/ast/{}".format(os.path.splitext(base_fn)[0] + ".ast"), new_dev_dir + "ast/" + os.path.splitext(base_fn)[0] + ".ast")
+        os.rename(cdn + "reference_standard_for_test_data/concept/{}".format(os.path.splitext(base_fn)[0] + ".con"), new_dev_dir + "concept/" + os.path.splitext(base_fn)[0] + ".con")
+        os.rename(cdn + "reference_standard_for_test_data/rel/{}".format(os.path.splitext(base_fn)[0] + ".rel"), new_dev_dir + "rel/" + os.path.splitext(base_fn)[0] + ".rel")
+
+
+def embed_train_test_dev(fnem, fnwid='../data/vocab.txt', fndata='../data/semrel.p', padlen=0, fnstop=None, skip_concept=True, pip_reorder=False, binEmb=False):
+    trp_rel_tr, tep_rel_tr, pp_rel_tr, trp_rel_te, tep_rel_te, pp_rel_te, trp_rel_de, tep_rel_de, pp_rel_de, vocab, hlen = build_train_test_dev(padlen=padlen, fnstop=fnstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
     fwid = open(fnwid, 'w')
     for wd in sorted(vocab.keys()):
         if vocab[wd] >= 1:
@@ -369,7 +438,7 @@ def embed_train_test(fnem, fnwid='../data/vocab.txt', fndata='../data/semrel.p',
         mem, hwoov, hwid = du.indexEmbedding(fnem, fnwid)
     mem = mem.astype('float32')
     # the saved data are lists of relation dicts, with keys c1, c2 ,etc.
-    cPickle.dump([trp_rel_tr, tep_rel_tr, pp_rel_tr, trp_rel_te, tep_rel_te, pp_rel_te, vocab, dict(hlen), mem, hwoov, hwid], open(fndata, "wb"))
+    cPickle.dump([trp_rel_tr, tep_rel_tr, pp_rel_tr, trp_rel_te, tep_rel_te, pp_rel_te, trp_rel_de, tep_rel_de, pp_rel_de, vocab, dict(hlen), mem, hwoov, hwid], open(fndata, "wb"))
     print "dataset created!"
     return mem, hwoov, hwid
 
