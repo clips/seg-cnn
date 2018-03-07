@@ -251,11 +251,10 @@ def load_rel(fnrel, sens, htrp, htep, hpp, vocab, hlen, trp_data, tep_data, pp_d
             lc += 1
             mo = re.search(r'c=".*?" (\d+):(\d+) \d+:(\d+)\|\|r="(.*?)"\|\|c=".*?" \d+:(\d+) \d+:(\d+)', ln)
             if mo:
-                senid = int(mo.group(1))-1 # start with 1 in annotation
-                
-                c1s = int(mo.group(2))
-                c1e = int(mo.group(3))+1
-                rel = mo.group(4)
+                senid = int(mo.group(1))-1 # start with 1 in annotation # line number
+                c1s = int(mo.group(2)) # start c1
+                c1e = int(mo.group(3))+1 # end c1
+                rel = mo.group(4)  # relation name
                 c2s = int(mo.group(5))
                 c2e = int(mo.group(6))+1
                 sen = sens[senid].lower()
@@ -323,7 +322,7 @@ def build_data(dn, vocab, hlen, mask=False, padlen=0, hstop={}, skip_concept=Fal
         fc += 1
         fnrel = re.sub('.txt', '.rel', fntxt)
         fncon = re.sub('.txt', '.con', fntxt)
-        sens = []
+        sens = [] # sentences to load
         with open('%s/%s' % (dntxt, fntxt), "r") as f:
             for ln in f:
                 ln = ln.rstrip(' \n')
