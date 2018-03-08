@@ -73,7 +73,7 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
     hrel_te = make_rel_hash(rel_te)
     hrel_de = make_rel_hash(rel_de)
     rng = np.random.RandomState()
-    img_h_tot = len(datasets[0][0])-2
+    img_h_tot = len(datasets[0][0])-2  # SS: exclude 2 dimensions: (iid, y). compa is included
     pad = max(filter_hs) - 1
     filter_w = img_w
     # yluo: what does different feature maps correspond to?
@@ -107,11 +107,14 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
     succ = T.matrix('succ')
     y = T.ivector('y')
     iid = T.vector('iid')
+    compa = T.vector('compa')  # compatibility of c1/c2
     Words = theano.shared(value = U, name = "Words")
     zero_vec_tensor = T.vector()
     zero_vec = np.zeros(img_w)
     set_zero = theano.function([zero_vec_tensor], updates=[(Words, T.set_subtensor(Words[0,:], zero_vec_tensor))], allow_input_downcast=True)
     c1_input = Words[T.cast(c1.flatten(),dtype="int32")].reshape((c1.shape[0],1,c1.shape[1],Words.shape[1])) # reshape to 3d array
+    # Words[T.cast(c1.flatten(),dtype="int32")] >>> len c1 flattened*emb_dim
+    # c1_input >>> n_insts * 1 * n_ws_per_inst * emb_dim
     c2_input = Words[T.cast(c2.flatten(),dtype="int32")].reshape((c2.shape[0],1,c2.shape[1],Words.shape[1])) # reshape to 3d array
     prec_input = Words[T.cast(prec.flatten(),dtype="int32")].reshape((prec.shape[0],1,prec.shape[1],Words.shape[1])) # reshape to 3d array
     mid_input = Words[T.cast(mid.flatten(),dtype="int32")].reshape((mid.shape[0],1,mid.shape[1],Words.shape[1])) # reshape to 3d array
@@ -130,11 +133,13 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
                                             filter_shape=filter_shape,
                                             poolsize=pool_size,
                                             non_linear=conv_non_linear)
-            layer1_input = conv_layer.output.flatten(2) # yluo: 2 dimensions
+            layer1_input = conv_layer.output.flatten(2) # yluo: 2 dimensions >>>
             conv_layers.append(conv_layer) # yluo: layer 0
             layer1_inputs.append(layer1_input) # yluo: 3 dimensions
-    layer1_input = T.concatenate(layer1_inputs,1) # yluo: 2 dimensions
-    hidden_units[0] = feature_maps*len(filter_hs)*len(hlen)    
+    layer1_input = T.concatenate(layer1_inputs,1) # yluo: 2 dimensions >>> n_insts * concat_dim?
+    pr = theano.printing.Print("")(layer1_input)
+    layer1_input = T.horizontal_stack(layer1_input, compa)
+    hidden_units[0] = feature_maps*len(filter_hs)*len(hlen)  # compa: leave the same?
     classifier = MLPDropout(rng, input=layer1_input, layer_sizes=hidden_units, activations=activations, dropout_rates=dropout_rate)
     
     #define parameters of the model and update functions using adadelta
@@ -158,6 +163,8 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
     c1s, c1e = hi_seg['c1']; c2s, c2e = hi_seg['c2']; mids, mide = hi_seg['mid']
     precs, prece = hi_seg['prec']; succs, succe = hi_seg['succ']
     yi = hi_seg['y']; idi = hi_seg['iid']
+    compai = hi_seg['compa']
+
     if tr_size % batch_size > 0:
         extra_data_num = batch_size - tr_size % batch_size
         train_set = rng.permutation(datasets[0])   
@@ -188,6 +195,7 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
     succ_te = datasets[1][:, succs:succe]
     test_set = datasets[1]
     y_te = np.asarray(test_set[:,yi],"int32")
+    compa_te = np.asarray(test_set[:, compai], "float32")
 
     train_set = new_data[:n_train_batches*batch_size,:]
     dev_set = new_data_de[:n_dev_batches*batch_size:,:]
@@ -206,6 +214,7 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
             prec: x_de[index*batch_size: (index+1)*batch_size, precs:prece],
             mid: x_de[index*batch_size: (index+1)*batch_size, mids:mide],
             succ: x_de[index*batch_size: (index+1)*batch_size, succs:succe],
+            compa: x_de[index*batch_size: (index+1)*batch_size, compai],
             y: y_de[index*batch_size: (index+1)*batch_size],
         },
         allow_input_downcast=True, on_unused_input='warn')
@@ -217,6 +226,7 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
             prec: x_tr[index*batch_size: (index+1)*batch_size, precs:prece],
             mid: x_tr[index*batch_size: (index+1)*batch_size, mids:mide],
             succ: x_tr[index*batch_size: (index+1)*batch_size, succs:succe],
+            compa: x_tr[index * batch_size: (index + 1) * batch_size, compai],
             y: y_tr[index*batch_size: (index+1)*batch_size]},
                                  allow_input_downcast=True)               
     train_model = theano.function([index], cost, updates=grad_updates,
@@ -226,6 +236,7 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
             prec: x_tr[index*batch_size: (index+1)*batch_size, precs:prece],
             mid: x_tr[index*batch_size: (index+1)*batch_size, mids:mide],
             succ: x_tr[index*batch_size: (index+1)*batch_size, succs:succe],
+            compa: x_tr[index * batch_size: (index + 1) * batch_size, compai],
             y: y_tr[index*batch_size: (index+1)*batch_size]},
         allow_input_downcast = True)     
     test_pred_layers = []
@@ -245,9 +256,10 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
             test_pred_layers.append(test_layer0_output.flatten(2))
             cl_id += 1
     test_layer1_input = T.concatenate(test_pred_layers, 1)
+    test_layer1_input = T.horizontal_stack(test_layer1_input, compa_te)
     test_y_pred = classifier.predict(test_layer1_input)
     test_error = T.mean(T.neq(test_y_pred, y))
-    test_model_all = theano.function([c1,c2,prec,mid,succ], test_y_pred, allow_input_downcast = True)  
+    test_model_all = theano.function([c1,c2,prec,mid,succ,compa], test_y_pred, allow_input_downcast = True)
     
     #start training over mini-batches
     print '... training'
@@ -264,7 +276,7 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
                 set_zero(zero_vec)
         else:
             for minibatch_index in xrange(n_train_batches):
-                cost_epoch = train_model(minibatch_index)  
+                cost_epoch = train_model(minibatch_index)
                 set_zero(zero_vec)
         train_losses = [np.mean(test_model(i)) for i in xrange(n_train_batches)]
         train_perf = 1 - np.mean(train_losses)
@@ -284,7 +296,7 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
         print('epoch: %i, training time: %.2f secs, train perf: %.2f %%, dev_mipre: %.2f %%, dev_mirec: %.2f %%, dev_mif: %.2f %%' % (epoch, time.time()-start_time, train_perf * 100., dev_mipre*100., dev_mirec*100., dev_mif*100.))
         if dev_mif >= best_dev_perf:
             best_dev_perf = dev_mif
-            test_pred = test_model_all(c1_te,c2_te,prec_te,mid_te,succ_te)
+            test_pred = test_model_all(c1_te,c2_te,prec_te,mid_te,succ_te,compa_te)
             test_errors = test_pred != y_te
             err_ind = [j for j,x in enumerate(test_errors) if x==1]
             test_cm = su.confMat(y_te, test_pred, hidden_units[1])
@@ -385,17 +397,18 @@ def get_idx_from_segment(words, word_idx_map, max_l=51, k=300, filter_h=5):
         x.append(0)
     return x
 
-def merge_segs(c1, c2, prec, mid, succ, y, iid, over_sampling=False, down_sampling=None):
+def merge_segs(c1, c2, prec, mid, succ, y, iid, compa, over_sampling=False, down_sampling=None):
     rng = np.random.RandomState()
     hi_seg = {}
     cursor = 0
-    print('shapes c1: %s, c2: %s, prec: %s, mid: %s, succ: %s, iid: %s, y: %s' % (c1.shape, c2.shape, prec.shape, mid.shape, succ.shape, iid.shape, y.shape))
-    data = np.hstack((c1, c2, prec, mid, succ, iid, y))
+    print('shapes c1: %s, c2: %s, prec: %s, mid: %s, succ: %s, compa: %s, iid: %s, y: %s' % (c1.shape, c2.shape, prec.shape, mid.shape, succ.shape, compa.shape, iid.shape, y.shape))
+    data = np.hstack((c1, c2, prec, mid, succ, compa, iid, y))
     hi_seg['c1'] = [cursor,c1.shape[1]]; cursor += c1.shape[1]
     hi_seg['c2'] = [cursor, cursor+c2.shape[1]]; cursor += c2.shape[1]
     hi_seg['prec'] = [cursor, cursor+prec.shape[1]]; cursor += prec.shape[1]
     hi_seg['mid'] = [cursor, cursor+mid.shape[1]]; cursor += mid.shape[1]
     hi_seg['succ'] = [cursor, cursor+succ.shape[1]]; cursor += succ.shape[1]
+    hi_seg['compa'] = cursor; cursor += 1
     hi_seg['iid'] = cursor; cursor += 1
     hi_seg['y'] = cursor
     y = y.flatten()
@@ -442,6 +455,7 @@ def make_idx_data_train_test_dev(rel_tr, rel_te, rel_de, word_idx_map, hlen, hre
     succ_tr, succ_te, succ_de = [], [], []
     y_tr, y_te, y_de = [], [], []
     iid_tr, iid_te, iid_de = [], [], []
+    compa_tr, compa_te, compa_de = [], [], []
     for rel in rel_tr:
         c1_tr.append( get_idx_from_segment(rel['c1'], word_idx_map, hlen['c1'], k, filter_h) )
         c2_tr.append( get_idx_from_segment(rel['c2'], word_idx_map, hlen['c2'], k, filter_h) )
@@ -450,9 +464,11 @@ def make_idx_data_train_test_dev(rel_tr, rel_te, rel_de, word_idx_map, hlen, hre
         succ_tr.append( get_idx_from_segment(rel['succ'], word_idx_map, hlen['succ'], k, filter_h) )
         y_tr.append(hrel[rel['rel']])
         iid_tr.append(rel['iid'])
+        compa_tr.append(rel['compa'])
     print(np.unique(y_tr, return_counts=True))
     y_tr = np.asarray(y_tr); y_tr = y_tr.reshape(len(y_tr), 1)
     iid_tr = np.asarray(iid_tr); iid_tr = iid_tr.reshape(len(iid_tr), 1)
+    compa_tr = np.asarray(compa_tr); compa_tr = compa_tr.reshape(len(compa_tr), 1)
     
     c1_tr_lens = map(len, c1_tr)
     print('c1 tr len max %d, min %d' % (max(c1_tr_lens), min(c1_tr_lens)))
@@ -465,9 +481,11 @@ def make_idx_data_train_test_dev(rel_tr, rel_te, rel_de, word_idx_map, hlen, hre
         succ_te.append( get_idx_from_segment(rel['succ'], word_idx_map, hlen['succ'], k, filter_h) )
         y_te.append(hrel[rel['rel']])
         iid_te.append(rel['iid'])
+        compa_te.append(rel['compa'])
     print(np.unique(y_te, return_counts=True))
     y_te = np.asarray(y_te); y_te = y_te.reshape(len(y_te), 1)
     iid_te = np.asarray(iid_te); iid_te = iid_te.reshape(len(iid_te), 1)
+    compa_te = np.asarray(compa_te); compa_te = compa_te.reshape(len(compa_te), 1)
 
     for rel in rel_de:
         c1_de.append(get_idx_from_segment(rel['c1'], word_idx_map, hlen['c1'], k, filter_h))
@@ -477,20 +495,20 @@ def make_idx_data_train_test_dev(rel_tr, rel_te, rel_de, word_idx_map, hlen, hre
         succ_de.append(get_idx_from_segment(rel['succ'], word_idx_map, hlen['succ'], k, filter_h))
         y_de.append(hrel[rel['rel']])
         iid_de.append(rel['iid'])
+        compa_de.append(rel['compa'])
     print(np.unique(y_de, return_counts=True))
-    y_de = np.asarray(y_de);
-    y_de = y_de.reshape(len(y_de), 1)
-    iid_de = np.asarray(iid_de);
-    iid_de = iid_de.reshape(len(iid_de), 1)
+    y_de = np.asarray(y_de); y_de = y_de.reshape(len(y_de), 1)
+    iid_de = np.asarray(iid_de); iid_de = iid_de.reshape(len(iid_de), 1)
+    compa_de = np.asarray(compa_de); compa_de = compa_de.reshape(len(compa_de), 1)
 
     c1_tr = np.array(c1_tr,dtype="int"); c1_te = np.array(c1_te,dtype="int"); c1_de = np.array(c1_de,dtype="int")
     c2_tr = np.array(c2_tr,dtype="int"); c2_te = np.array(c2_te,dtype="int"); c2_de = np.array(c2_de,dtype="int")
     prec_tr = np.array(prec_tr,dtype="int"); prec_te = np.array(prec_te,dtype="int"); prec_de = np.array(prec_de,dtype="int")
     mid_tr = np.array(mid_tr,dtype="int"); mid_te = np.array(mid_te,dtype="int"); mid_de = np.array(mid_de,dtype="int")
     succ_tr = np.array(succ_tr,dtype="int"); succ_te = np.array(succ_te,dtype="int"); succ_de = np.array(succ_de,dtype="int")
-    train, hi_seg_tr = merge_segs(c1_tr, c2_tr, prec_tr, mid_tr, succ_tr, y_tr, iid_tr, down_sampling=down_sampling)
-    test, hi_seg_te = merge_segs(c1_te, c2_te, prec_te, mid_te, succ_te, y_te, iid_te)
-    dev, hi_seg_de = merge_segs(c1_de, c2_de, prec_de, mid_de, succ_de, y_de, iid_de)
+    train, hi_seg_tr = merge_segs(c1_tr, c2_tr, prec_tr, mid_tr, succ_tr, y_tr, iid_tr, compa_tr, down_sampling=down_sampling)
+    test, hi_seg_te = merge_segs(c1_te, c2_te, prec_te, mid_te, succ_te, y_te, iid_te, compa_te)
+    dev, hi_seg_de = merge_segs(c1_de, c2_de, prec_de, mid_de, succ_de, y_de, iid_de, compa_de)
     return [train, test, dev, hi_seg_tr, hi_seg_te, hi_seg_de]
   
    
@@ -533,6 +551,7 @@ if __name__=="__main__":
     fdata = open(fndata,"rb")
     x = cPickle.load(fdata)
     fdata.close()
+    print("dbg: using data subsets (10 file in each dir)...")
     trp_rel_tr, tep_rel_tr, pp_rel_tr, trp_rel_te, tep_rel_te, pp_rel_te, trp_rel_de, tep_rel_de, pp_rel_de, vocab, hlen, mem, hwoov, hwid = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13]
     for cts in hlen.keys():
         hlen[cts]['c1'] += 2*pad

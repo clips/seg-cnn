@@ -8,7 +8,7 @@ import cPickle
 from collections import defaultdict
 import re, os
 import data_util as du
-
+from background_knowledge import compatibility
 
 trp_rel = ['TrIP', 'TrWP', 'TrCP', 'TrAP', 'TrNAP']
 tep_rel = ['TeRP', 'TeCP']
@@ -143,6 +143,7 @@ def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, 
     hlen[cts]['c2'] = max(hlen[cts]['c2'], len(c2))
     hlen[cts]['mid'] = max(hlen[cts]['mid'], len(mid))
 
+    compa_c1c2 = compatibility(c1, c2, rel)
     if c1s < c2s:
         c1 = prec[-padlen:] + c1 + mid[:padlen]
         c2 = mid[-padlen:] + c2 + succ[:padlen]
@@ -163,7 +164,8 @@ def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, 
               'prec': prec,
               'succ': succ,
               'mid': mid,
-              'sen': ' '.join(mwords)}
+              'sen': ' '.join(mwords),
+              'compa': compa_c1c2}
     return datum;
 
 def add_none_rel(fn, hpair, sens, rels, vocab, hlen, mask=False, mid_lmax=None, padlen=0, hstop={}, hproblem={}, htreatment={}, htest={}, skip_concept=False):
@@ -311,8 +313,9 @@ def build_data(dn, vocab, hlen, mask=False, padlen=0, hstop={}, skip_concept=Fal
     dnrel = '%s/rel' % (dn)
     dncon = '%s/concept' % (dn)
     fc = 0
-    
-    for fntxt in os.listdir(dntxt):
+
+    print("dbg: taking data subsets (10 file in each dir)...")
+    for fntxt in os.listdir(dntxt)[:10]:
         htrp = defaultdict(dict)
         htep = defaultdict(dict)
         hpp = defaultdict(dict)
@@ -329,7 +332,8 @@ def build_data(dn, vocab, hlen, mask=False, padlen=0, hstop={}, skip_concept=Fal
                 sens.append(ln)
 
         (hproblem, htreatment, htest) = load_con('%s/%s' % (dncon, fncon), htrp, htep, hpp)
-                            
+
+        # side effect: updates trp/tep/pp_data:
         load_rel('%s/%s' % (dnrel, fnrel), sens, htrp, htep, hpp, vocab, hlen, trp_data, tep_data, pp_data, mask=mask, padlen=padlen, hstop=hstop, hproblem=hproblem, htreatment=htreatment, htest=htest, skip_concept=skip_concept, pip_reorder=pip_reorder)
 
     print(fc)
@@ -339,6 +343,17 @@ def build_train_test_dev(cdn='/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets
     hstop = {}; vocab = defaultdict(float)
     if fnstop != None:
         hstop=load_stoplist(fnstop)
+
+    # each var from build_data() is [datum, ...], where
+    # datum={'iid':iid,
+    #        'rel':rel,
+    #        'c1': c1,
+    #        'c2': c2,
+    #        'prec': prec,
+    #        'succ': succ,
+    #        'mid': mid,
+    #        'sen': ' '.join(mwords),
+    #        'compa': compa_c1c2}
     trp_beth_tr, tep_beth_tr, pp_beth_tr = build_data('%s/concept_assertion_relation_training_data/beth' % (cdn), vocab, hlen, mask=True, padlen=padlen, hstop=hstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
     print('beth_tr %d' % (len(trp_beth_tr)))
     print('beth_te %d' % (len(tep_beth_tr)))
