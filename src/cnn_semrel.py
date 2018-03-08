@@ -108,6 +108,7 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
     y = T.ivector('y')
     iid = T.vector('iid')
     compa = T.vector('compa')  # compatibility of c1/c2
+    #pr = theano.printing.Print("COMPA")(compa)
     Words = theano.shared(value = U, name = "Words")
     zero_vec_tensor = T.vector()
     zero_vec = np.zeros(img_w)
@@ -137,9 +138,8 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
             conv_layers.append(conv_layer) # yluo: layer 0
             layer1_inputs.append(layer1_input) # yluo: 3 dimensions
     layer1_input = T.concatenate(layer1_inputs,1) # yluo: 2 dimensions >>> n_insts * concat_dim?
-    pr = theano.printing.Print("")(layer1_input)
-    layer1_input = T.horizontal_stack(layer1_input, compa)
-    hidden_units[0] = feature_maps*len(filter_hs)*len(hlen)  # compa: leave the same?
+    layer1_input = T.horizontal_stack(layer1_input, compa.reshape((compa.shape[0], 1)))
+    hidden_units[0] = feature_maps*len(filter_hs)*len(hlen)+1 # compa: plus 1
     classifier = MLPDropout(rng, input=layer1_input, layer_sizes=hidden_units, activations=activations, dropout_rates=dropout_rate)
     
     #define parameters of the model and update functions using adadelta
@@ -256,7 +256,8 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
             test_pred_layers.append(test_layer0_output.flatten(2))
             cl_id += 1
     test_layer1_input = T.concatenate(test_pred_layers, 1)
-    test_layer1_input = T.horizontal_stack(test_layer1_input, compa_te)
+    #test_layer1_input = T.horizontal_stack(test_layer1_input, compa_te.reshape((compa_te.shape[0], 1)))
+    test_layer1_input = T.horizontal_stack(test_layer1_input, compa.reshape((compa.shape[0], 1)))
     test_y_pred = classifier.predict(test_layer1_input)
     test_error = T.mean(T.neq(test_y_pred, y))
     test_model_all = theano.function([c1,c2,prec,mid,succ,compa], test_y_pred, allow_input_downcast = True)
