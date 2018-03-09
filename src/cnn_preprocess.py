@@ -8,12 +8,15 @@ import cPickle
 from collections import defaultdict
 import re, os
 import data_util as du
-from background_knowledge import compatibility
+from background_knowledge import compatibility, read_drugbank
 
 trp_rel = ['TrIP', 'TrWP', 'TrCP', 'TrAP', 'TrNAP']
 tep_rel = ['TeRP', 'TeCP']
 pp_rel = ['PIP']
 dosages = ['mg', 'bid', 'prn', 'qd', 'po', 'tid', 'qhs', 'qid', 'qod']
+
+drug_to_id, id_to_indication = read_drugbank()
+
 
 def load_stoplist(fn):
     ## in case you want to use stopword list, not really needed
@@ -143,7 +146,7 @@ def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, 
     hlen[cts]['c2'] = max(hlen[cts]['c2'], len(c2))
     hlen[cts]['mid'] = max(hlen[cts]['mid'], len(mid))
 
-    compa_c1c2 = compatibility(c1, c2, rel)
+    compa_c1c2 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_indication)
     if c1s < c2s:
         c1 = prec[-padlen:] + c1 + mid[:padlen]
         c2 = mid[-padlen:] + c2 + succ[:padlen]
@@ -314,8 +317,8 @@ def build_data(dn, vocab, hlen, mask=False, padlen=0, hstop={}, skip_concept=Fal
     dncon = '%s/concept' % (dn)
     fc = 0
 
-    print("dbg: taking data subsets (10 file in each dir)...")
-    for fntxt in os.listdir(dntxt)[:10]:
+    #print("dbg: taking data subsets (10 file in each dir)...")
+    for fntxt in os.listdir(dntxt):
         htrp = defaultdict(dict)
         htep = defaultdict(dict)
         hpp = defaultdict(dict)
@@ -337,6 +340,7 @@ def build_data(dn, vocab, hlen, mask=False, padlen=0, hstop={}, skip_concept=Fal
         load_rel('%s/%s' % (dnrel, fnrel), sens, htrp, htep, hpp, vocab, hlen, trp_data, tep_data, pp_data, mask=mask, padlen=padlen, hstop=hstop, hproblem=hproblem, htreatment=htreatment, htest=htest, skip_concept=skip_concept, pip_reorder=pip_reorder)
 
     print(fc)
+
     return trp_data, tep_data, pp_data
 
 def build_train_test_dev(cdn='/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets/i2b2-2010/', hlen = defaultdict(lambda:defaultdict(float)), padlen=0, fnstop=None, skip_concept=False, pip_reorder=False):
