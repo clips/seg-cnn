@@ -8,7 +8,6 @@ __revision__="0.5"
 
 import cPickle
 import numpy as np
-np.random.seed(5)
 from collections import defaultdict, OrderedDict
 import os
 os.environ["THEANO_FLAGS"] = "mode=FAST_RUN,device=gpu,floatX=float32"
@@ -585,7 +584,6 @@ if __name__=="__main__":
         mirec_de_runs = []
         mif_de_runs = []
         for n_run in range(n_runs):
-            np.random.seed(5)
             (mipre, mirec, mif, mipre_de, mirec_de, mif_de) = train_conv_net(trp_data, trp_rel_tr, trp_rel_te, trp_rel_de,
                                                  hlen['problem_treatment'],
                                                  U,
