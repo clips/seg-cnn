@@ -15,7 +15,7 @@ tep_rel = ['TeRP', 'TeCP']
 pp_rel = ['PIP']
 dosages = ['mg', 'bid', 'prn', 'qd', 'po', 'tid', 'qhs', 'qid', 'qod']
 
-drug_to_id, id_to_indication = read_drugbank()
+drug_to_id, id_to_indication, id_to_adr = read_drugbank()
 
 
 def load_stoplist(fn):
@@ -146,7 +146,11 @@ def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, 
     hlen[cts]['c2'] = max(hlen[cts]['c2'], len(c2))
     hlen[cts]['mid'] = max(hlen[cts]['mid'], len(mid))
 
-    compa_c1c2 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_indication)
+    compa1 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_indication)
+    compa2 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_adr)
+    #compa1 = 1.
+    #compa2 = 1.
+
     if c1s < c2s:
         c1 = prec[-padlen:] + c1 + mid[:padlen]
         c2 = mid[-padlen:] + c2 + succ[:padlen]
@@ -168,7 +172,8 @@ def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, 
               'succ': succ,
               'mid': mid,
               'sen': ' '.join(mwords),
-              'compa': compa_c1c2}
+              'compa1': compa1,
+              'compa2': compa2}
     return datum;
 
 def add_none_rel(fn, hpair, sens, rels, vocab, hlen, mask=False, mid_lmax=None, padlen=0, hstop={}, hproblem={}, htreatment={}, htest={}, skip_concept=False):
