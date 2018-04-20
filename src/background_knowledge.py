@@ -125,7 +125,7 @@ def semclass(txt, lexicon, lemmatizer=None):
 
     # wordnet_lemmatizer = WordNetLemmatizer()
 
-    f_vec = np.array([-1.] * len(lexicon.keys()))
+    f_vec = np.array([-1.] * len(lexicon.keys()))  # trp->5
     mapping = dict(zip(lexicon.keys(), range(len(lexicon.keys()))))
     for w in txt:
         for sem_cl, syns in lexicon.items():
