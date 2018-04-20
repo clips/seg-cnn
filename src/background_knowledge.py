@@ -113,25 +113,21 @@ def compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_info):
     return compa
 
 
-def semclass(txt, lexicon, lemmatizer=None):
+def semclass(txt, lexicon, rel, lemmatizer=None):
     """
-
     :param txt:
     :param lexicon:
     :param lemmatizer: WordNetLemmatizer from NLTK
     :return:
     """
-    # from nltk.stem import WordNetLemmatizer
-
-    # wordnet_lemmatizer = WordNetLemmatizer()
-
     f_vec = np.array([-1.] * len(lexicon.keys()))  # trp->5
     mapping = dict(zip(lexicon.keys(), range(len(lexicon.keys()))))
     for w in txt:
         for sem_cl, syns in lexicon.items():
             if lemmatizer is not None:
-                if lemmatizer.lemmatize(w.lower(), pos="v") in syns:
-                    f_vec[mapping[sem_cl]] = 1
+                w = lemmatizer.lemmatize(w.lower(), pos="v")
+            if w in syns:
+                f_vec[mapping[sem_cl]] = 1.
 
     return f_vec
 

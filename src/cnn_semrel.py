@@ -108,6 +108,11 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
     iid = T.vector('iid')
     compa1 = T.vector('compa1')  # compatibility1 of c1/c2
     compa2 = T.vector('compa2')  # compatibility2 of c1/c2
+    semclass1 = T.vector('semclass1')  # semclass of a "predicate"
+    semclass2 = T.vector('semclass2')  # semclass of a "predicate"
+    semclass3 = T.vector('semclass3')  # semclass of a "predicate"
+    semclass4 = T.vector('semclass4')  # semclass of a "predicate"
+    semclass5 = T.vector('semclass5')  # semclass of a "predicate"
     #pr = theano.printing.Print("COMPA")(compa)
     Words = theano.shared(value = U, name = "Words")
     zero_vec_tensor = T.vector()
@@ -138,8 +143,15 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
             conv_layers.append(conv_layer) # yluo: layer 0
             layer1_inputs.append(layer1_input) # yluo: 3 dimensions
     layer1_input = T.concatenate(layer1_inputs,1) # yluo: 2 dimensions >>> n_insts * concat_dim?
-    layer1_input = T.horizontal_stack(layer1_input, compa1.reshape((compa1.shape[0], 1)), compa2.reshape((compa2.shape[0], 1)))
-    hidden_units[0] = feature_maps*len(filter_hs)*len(hlen)+2 # compa: plus 2 (we have two compa feats)
+    layer1_input = T.horizontal_stack(layer1_input,
+                                      compa1.reshape((compa1.shape[0], 1)),
+                                      compa2.reshape((compa2.shape[0], 1)),
+                                      semclass1.reshape((semclass1.shape[0], 1)),
+                                      semclass2.reshape((semclass2.shape[0], 1)),
+                                      semclass3.reshape((semclass3.shape[0], 1)),
+                                      semclass4.reshape((semclass4.shape[0], 1)),
+                                      semclass5.reshape((semclass5.shape[0], 1)))
+    hidden_units[0] = feature_maps*len(filter_hs)*len(hlen)+2+5 # compa: plus 2 (we have two compa feats); semclass: plus 5
     classifier = MLPDropout(rng, input=layer1_input, layer_sizes=hidden_units, activations=activations, dropout_rates=dropout_rate)
     
     #define parameters of the model and update functions using adadelta
@@ -165,6 +177,11 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
     yi = hi_seg['y']; idi = hi_seg['iid']
     compa1i = hi_seg['compa1']
     compa2i = hi_seg['compa2']
+    semclass1i = hi_seg['semclass1']
+    semclass2i = hi_seg['semclass2']
+    semclass3i = hi_seg['semclass3']
+    semclass4i = hi_seg['semclass4']
+    semclass5i = hi_seg['semclass5']
 
     if tr_size % batch_size > 0:
         extra_data_num = batch_size - tr_size % batch_size
@@ -198,6 +215,11 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
     y_te = np.asarray(test_set[:,yi],"int32")
     compa1_te = np.asarray(test_set[:, compa1i], "float32")
     compa2_te = np.asarray(test_set[:, compa2i], "float32")
+    semclass1_te = np.asarray(test_set[:, semclass1i], "float32")
+    semclass2_te = np.asarray(test_set[:, semclass2i], "float32")
+    semclass3_te = np.asarray(test_set[:, semclass3i], "float32")
+    semclass4_te = np.asarray(test_set[:, semclass4i], "float32")
+    semclass5_te = np.asarray(test_set[:, semclass5i], "float32")
 
     train_set = new_data[:n_train_batches*batch_size,:]
     dev_set = new_data_de[:n_dev_batches*batch_size:,:]
@@ -218,6 +240,11 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
             succ: x_de[index*batch_size: (index+1)*batch_size, succs:succe],
             compa1: x_de[index*batch_size: (index+1)*batch_size, compa1i],
             compa2: x_de[index * batch_size: (index + 1) * batch_size, compa2i],
+            semclass1: x_de[index * batch_size: (index + 1) * batch_size, semclass1i],
+            semclass2: x_de[index * batch_size: (index + 1) * batch_size, semclass2i],
+            semclass3: x_de[index * batch_size: (index + 1) * batch_size, semclass3i],
+            semclass4: x_de[index * batch_size: (index + 1) * batch_size, semclass4i],
+            semclass5: x_de[index * batch_size: (index + 1) * batch_size, semclass5i],
             y: y_de[index*batch_size: (index+1)*batch_size],
         },
         allow_input_downcast=True, on_unused_input='warn')
@@ -231,6 +258,11 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
             succ: x_tr[index*batch_size: (index+1)*batch_size, succs:succe],
             compa1: x_tr[index * batch_size: (index + 1) * batch_size, compa1i],
             compa2: x_tr[index * batch_size: (index + 1) * batch_size, compa2i],
+            semclass1: x_tr[index * batch_size: (index + 1) * batch_size, semclass1i],
+            semclass2: x_tr[index * batch_size: (index + 1) * batch_size, semclass2i],
+            semclass3: x_tr[index * batch_size: (index + 1) * batch_size, semclass3i],
+            semclass4: x_tr[index * batch_size: (index + 1) * batch_size, semclass4i],
+            semclass5: x_tr[index * batch_size: (index + 1) * batch_size, semclass5i],
             y: y_tr[index*batch_size: (index+1)*batch_size]},
                                  allow_input_downcast=True)               
     train_model = theano.function([index], cost, updates=grad_updates,
@@ -242,6 +274,11 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
             succ: x_tr[index*batch_size: (index+1)*batch_size, succs:succe],
             compa1: x_tr[index * batch_size: (index + 1) * batch_size, compa1i],
             compa2: x_tr[index * batch_size: (index + 1) * batch_size, compa2i],
+            semclass1: x_tr[index * batch_size: (index + 1) * batch_size, semclass1i],
+            semclass2: x_tr[index * batch_size: (index + 1) * batch_size, semclass2i],
+            semclass3: x_tr[index * batch_size: (index + 1) * batch_size, semclass3i],
+            semclass4: x_tr[index * batch_size: (index + 1) * batch_size, semclass4i],
+            semclass5: x_tr[index * batch_size: (index + 1) * batch_size, semclass5i],
             y: y_tr[index*batch_size: (index+1)*batch_size]},
         allow_input_downcast = True)     
     test_pred_layers = []
@@ -262,10 +299,17 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
             cl_id += 1
     test_layer1_input = T.concatenate(test_pred_layers, 1)
     #test_layer1_input = T.horizontal_stack(test_layer1_input, compa_te.reshape((compa_te.shape[0], 1)))
-    test_layer1_input = T.horizontal_stack(test_layer1_input, compa1.reshape((compa1.shape[0], 1)), compa2.reshape((compa2.shape[0], 1)))
+    test_layer1_input = T.horizontal_stack(test_layer1_input,
+                                           compa1.reshape((compa1.shape[0], 1)),
+                                           compa2.reshape((compa2.shape[0], 1)),
+                                           semclass1.reshape((semclass1.shape[0], 1)),
+                                           semclass2.reshape((semclass2.shape[0], 1)),
+                                           semclass3.reshape((semclass3.shape[0], 1)),
+                                           semclass4.reshape((semclass4.shape[0], 1)),
+                                           semclass5.reshape((semclass5.shape[0], 1)))
     test_y_pred = classifier.predict(test_layer1_input)
     test_error = T.mean(T.neq(test_y_pred, y))
-    test_model_all = theano.function([c1,c2,prec,mid,succ,compa1,compa2], test_y_pred, allow_input_downcast = True)
+    test_model_all = theano.function([c1,c2,prec,mid,succ,compa1,compa2,semclass1,semclass2,semclass3,semclass4,semclass5], test_y_pred, allow_input_downcast = True)
     
     #start training over mini-batches
     print '... training'
@@ -302,7 +346,7 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
         print('epoch: %i, training time: %.2f secs, train perf: %.2f %%, dev_mipre: %.2f %%, dev_mirec: %.2f %%, dev_mif: %.2f %%' % (epoch, time.time()-start_time, train_perf * 100., dev_mipre*100., dev_mirec*100., dev_mif*100.))
         if dev_mif >= best_dev_perf:
             best_dev_perf = dev_mif
-            test_pred = test_model_all(c1_te,c2_te,prec_te,mid_te,succ_te,compa1_te,compa2_te)
+            test_pred = test_model_all(c1_te,c2_te,prec_te,mid_te,succ_te,compa1_te,compa2_te,semclass1_te,semclass2_te,semclass3_te,semclass4_te,semclass5_te)
             test_errors = test_pred != y_te
             err_ind = [j for j,x in enumerate(test_errors) if x==1]
             test_cm = su.confMat(y_te, test_pred, hidden_units[1])
@@ -403,12 +447,12 @@ def get_idx_from_segment(words, word_idx_map, max_l=51, k=300, filter_h=5):
         x.append(0)
     return x
 
-def merge_segs(c1, c2, prec, mid, succ, y, iid, compa1, compa2, over_sampling=False, down_sampling=None):
+def merge_segs(c1, c2, prec, mid, succ, y, iid, compa1, compa2, semclass1, semclass2, semclass3, semclass4, semclass5, over_sampling=False, down_sampling=None):
     rng = np.random.RandomState()
     hi_seg = {}
     cursor = 0
-    print('shapes c1: %s, c2: %s, prec: %s, mid: %s, succ: %s, compa1: %s, compa2: %s, iid: %s, y: %s' % (c1.shape, c2.shape, prec.shape, mid.shape, succ.shape, compa1.shape, compa2.shape, iid.shape, y.shape))
-    data = np.hstack((c1, c2, prec, mid, succ, compa1, compa2, iid, y))
+    print('shapes c1: %s, c2: %s, prec: %s, mid: %s, succ: %s, compa1: %s, compa2: %s, semclass1: %s, semclass2: %s, semclass3: %s, semclass4: %s, semclass5: %s, iid: %s, y: %s' % (c1.shape, c2.shape, prec.shape, mid.shape, succ.shape, compa1.shape, compa2.shape, semclass1.shape, semclass2.shape, semclass3.shape, semclass4.shape, semclass5.shape, iid.shape, y.shape))
+    data = np.hstack((c1, c2, prec, mid, succ, compa1, compa2, semclass1, semclass2, semclass3, semclass4, semclass5, iid, y))
     hi_seg['c1'] = [cursor,c1.shape[1]]; cursor += c1.shape[1]
     hi_seg['c2'] = [cursor, cursor+c2.shape[1]]; cursor += c2.shape[1]
     hi_seg['prec'] = [cursor, cursor+prec.shape[1]]; cursor += prec.shape[1]
@@ -416,6 +460,11 @@ def merge_segs(c1, c2, prec, mid, succ, y, iid, compa1, compa2, over_sampling=Fa
     hi_seg['succ'] = [cursor, cursor+succ.shape[1]]; cursor += succ.shape[1]
     hi_seg['compa1'] = cursor; cursor += 1
     hi_seg['compa2'] = cursor; cursor += 1
+    hi_seg['semclass1'] = cursor; cursor += 1
+    hi_seg['semclass2'] = cursor; cursor += 1
+    hi_seg['semclass3'] = cursor; cursor += 1
+    hi_seg['semclass4'] = cursor; cursor += 1
+    hi_seg['semclass5'] = cursor; cursor += 1
     hi_seg['iid'] = cursor; cursor += 1
     hi_seg['y'] = cursor
     y = y.flatten()
@@ -464,6 +513,12 @@ def make_idx_data_train_test_dev(rel_tr, rel_te, rel_de, word_idx_map, hlen, hre
     iid_tr, iid_te, iid_de = [], [], []
     compa1_tr, compa1_te, compa1_de = [], [], []
     compa2_tr, compa2_te, compa2_de = [], [], []
+    semclass1_tr, semclass1_te, semclass1_de = [], [], []
+    semclass2_tr, semclass2_te, semclass2_de = [], [], []
+    semclass3_tr, semclass3_te, semclass3_de = [], [], []
+    semclass4_tr, semclass4_te, semclass4_de = [], [], []
+    semclass5_tr, semclass5_te, semclass5_de = [], [], []
+
     for rel in rel_tr:
         c1_tr.append( get_idx_from_segment(rel['c1'], word_idx_map, hlen['c1'], k, filter_h) )
         c2_tr.append( get_idx_from_segment(rel['c2'], word_idx_map, hlen['c2'], k, filter_h) )
@@ -474,11 +529,22 @@ def make_idx_data_train_test_dev(rel_tr, rel_te, rel_de, word_idx_map, hlen, hre
         iid_tr.append(rel['iid'])
         compa1_tr.append(rel['compa1'])
         compa2_tr.append(rel['compa2'])
+        semclass1_tr.append(rel['semclass1'])
+        semclass2_tr.append(rel['semclass2'])
+        semclass3_tr.append(rel['semclass3'])
+        semclass4_tr.append(rel['semclass4'])
+        semclass5_tr.append(rel['semclass5'])
+
     print(np.unique(y_tr, return_counts=True))
     y_tr = np.asarray(y_tr); y_tr = y_tr.reshape(len(y_tr), 1)
     iid_tr = np.asarray(iid_tr); iid_tr = iid_tr.reshape(len(iid_tr), 1)
     compa1_tr = np.asarray(compa1_tr); compa1_tr = compa1_tr.reshape(len(compa1_tr), 1)
     compa2_tr = np.asarray(compa2_tr); compa2_tr = compa2_tr.reshape(len(compa2_tr), 1)
+    semclass1_tr = np.asarray(semclass1_tr); semclass1_tr = semclass1_tr.reshape(len(semclass1_tr), 1)
+    semclass2_tr = np.asarray(semclass2_tr); semclass2_tr = semclass2_tr.reshape(len(semclass2_tr), 1)
+    semclass3_tr = np.asarray(semclass3_tr); semclass3_tr = semclass3_tr.reshape(len(semclass3_tr), 1)
+    semclass4_tr = np.asarray(semclass4_tr); semclass4_tr = semclass4_tr.reshape(len(semclass4_tr), 1)
+    semclass5_tr = np.asarray(semclass5_tr); semclass5_tr = semclass5_tr.reshape(len(semclass5_tr), 1)
     
     c1_tr_lens = map(len, c1_tr)
     print('c1 tr len max %d, min %d' % (max(c1_tr_lens), min(c1_tr_lens)))
@@ -493,11 +559,22 @@ def make_idx_data_train_test_dev(rel_tr, rel_te, rel_de, word_idx_map, hlen, hre
         iid_te.append(rel['iid'])
         compa1_te.append(rel['compa1'])
         compa2_te.append(rel['compa2'])
+        semclass1_te.append(rel['semclass1'])
+        semclass2_te.append(rel['semclass2'])
+        semclass3_te.append(rel['semclass3'])
+        semclass4_te.append(rel['semclass4'])
+        semclass5_te.append(rel['semclass5'])
     print(np.unique(y_te, return_counts=True))
     y_te = np.asarray(y_te); y_te = y_te.reshape(len(y_te), 1)
     iid_te = np.asarray(iid_te); iid_te = iid_te.reshape(len(iid_te), 1)
     compa1_te = np.asarray(compa1_te); compa1_te = compa1_te.reshape(len(compa1_te), 1)
     compa2_te = np.asarray(compa2_te); compa2_te = compa2_te.reshape(len(compa2_te), 1)
+    semclass1_te = np.asarray(semclass1_te); semclass1_te = semclass1_te.reshape(len(semclass1_te), 1)
+    semclass2_te = np.asarray(semclass2_te); semclass2_te = semclass2_te.reshape(len(semclass2_te), 1)
+    semclass3_te = np.asarray(semclass3_te); semclass3_te = semclass3_te.reshape(len(semclass3_te), 1)
+    semclass4_te = np.asarray(semclass4_te); semclass4_te = semclass4_te.reshape(len(semclass4_te), 1)
+    semclass5_te = np.asarray(semclass5_te); semclass5_te = semclass5_te.reshape(len(semclass5_te), 1)
+
 
     for rel in rel_de:
         c1_de.append(get_idx_from_segment(rel['c1'], word_idx_map, hlen['c1'], k, filter_h))
@@ -509,20 +586,33 @@ def make_idx_data_train_test_dev(rel_tr, rel_te, rel_de, word_idx_map, hlen, hre
         iid_de.append(rel['iid'])
         compa1_de.append(rel['compa1'])
         compa2_de.append(rel['compa2'])
+        semclass1_de.append(rel['semclass1'])
+        semclass2_de.append(rel['semclass2'])
+        semclass3_de.append(rel['semclass3'])
+        semclass4_de.append(rel['semclass4'])
+        semclass5_de.append(rel['semclass5'])
+
+
     print(np.unique(y_de, return_counts=True))
     y_de = np.asarray(y_de); y_de = y_de.reshape(len(y_de), 1)
     iid_de = np.asarray(iid_de); iid_de = iid_de.reshape(len(iid_de), 1)
     compa1_de = np.asarray(compa1_de); compa1_de = compa1_de.reshape(len(compa1_de), 1)
     compa2_de = np.asarray(compa2_de); compa2_de = compa2_de.reshape(len(compa2_de), 1)
+    semclass1_de = np.asarray(semclass1_de); semclass1_de = semclass1_de.reshape(len(semclass1_de), 1)
+    semclass2_de = np.asarray(semclass2_de); semclass2_de = semclass2_de.reshape(len(semclass2_de), 1)
+    semclass3_de = np.asarray(semclass3_de); semclass3_de = semclass3_de.reshape(len(semclass3_de), 1)
+    semclass4_de = np.asarray(semclass4_de); semclass4_de = semclass4_de.reshape(len(semclass4_de), 1)
+    semclass5_de = np.asarray(semclass5_de); semclass5_de = semclass5_de.reshape(len(semclass5_de), 1)
+
 
     c1_tr = np.array(c1_tr,dtype="int"); c1_te = np.array(c1_te,dtype="int"); c1_de = np.array(c1_de,dtype="int")
     c2_tr = np.array(c2_tr,dtype="int"); c2_te = np.array(c2_te,dtype="int"); c2_de = np.array(c2_de,dtype="int")
     prec_tr = np.array(prec_tr,dtype="int"); prec_te = np.array(prec_te,dtype="int"); prec_de = np.array(prec_de,dtype="int")
     mid_tr = np.array(mid_tr,dtype="int"); mid_te = np.array(mid_te,dtype="int"); mid_de = np.array(mid_de,dtype="int")
     succ_tr = np.array(succ_tr,dtype="int"); succ_te = np.array(succ_te,dtype="int"); succ_de = np.array(succ_de,dtype="int")
-    train, hi_seg_tr = merge_segs(c1_tr, c2_tr, prec_tr, mid_tr, succ_tr, y_tr, iid_tr, compa1_tr, compa2_tr, down_sampling=down_sampling)
-    test, hi_seg_te = merge_segs(c1_te, c2_te, prec_te, mid_te, succ_te, y_te, iid_te, compa1_te, compa2_te)
-    dev, hi_seg_de = merge_segs(c1_de, c2_de, prec_de, mid_de, succ_de, y_de, iid_de, compa1_de, compa2_de)
+    train, hi_seg_tr = merge_segs(c1_tr, c2_tr, prec_tr, mid_tr, succ_tr, y_tr, iid_tr, compa1_tr, compa2_tr, semclass1_tr, semclass2_tr, semclass3_tr, semclass4_tr, semclass5_tr, down_sampling=down_sampling)
+    test, hi_seg_te = merge_segs(c1_te, c2_te, prec_te, mid_te, succ_te, y_te, iid_te, compa1_te, compa2_te, semclass1_te, semclass2_te, semclass3_te, semclass4_te, semclass5_te)
+    dev, hi_seg_de = merge_segs(c1_de, c2_de, prec_de, mid_de, succ_de, y_de, iid_de, compa1_de, compa2_de, semclass1_de, semclass2_de, semclass3_de, semclass4_de, semclass5_de)
     return [train, test, dev, hi_seg_tr, hi_seg_te, hi_seg_de]
   
    

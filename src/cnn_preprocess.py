@@ -7,8 +7,12 @@ import numpy as np
 import cPickle
 from collections import defaultdict
 import re, os
+from nltk.stem import WordNetLemmatizer
+
 import data_util as du
-from background_knowledge import compatibility, read_drugbank
+from background_knowledge import compatibility, read_drugbank, semclass
+from lexica import lexica
+
 
 trp_rel = ['TrIP', 'TrWP', 'TrCP', 'TrAP', 'TrNAP']
 tep_rel = ['TeRP', 'TeCP']
@@ -130,7 +134,7 @@ def markup_sen(words, c1s, c1e, c2s, c2e, iid, hproblem, htreatment, htest):
         mwords = words[:c2s] + ['['] + words[c2s:c2e] + [']%s' % (c2t)] + words[c2e:c1s] + ['['] + words[c1s:c1e] + [']%s' % (c1t)] + words[c1e:]
     return mwords;
         
-def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, hstop={}, hproblem={}, htreatment={}, htest={}, mask=False, skip_concept=False):
+def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, hstop={}, hproblem={}, htreatment={}, htest={}, mask=False, skip_concept=False, lemmatizer=None):
     words = sen.split()
     hmask = load_mask(words, iid)
     c1 = clean_wds(fmask(words, c1s, c1e, hmask), hstop, strict=False)
@@ -146,10 +150,11 @@ def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, 
     hlen[cts]['c2'] = max(hlen[cts]['c2'], len(c2))
     hlen[cts]['mid'] = max(hlen[cts]['mid'], len(mid))
 
-    compa1 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_indication)
-    compa2 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_adr)
-    #compa1 = 1.
-    #compa2 = 1.
+    #compa1 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_indication)
+    #compa2 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_adr)
+    compa1 = 1.
+    compa2 = 1.
+    semclass1, semclass2, semclass3, semclass4, semclass5 = semclass(mid, lexica["lexicon"], rel, lemmatizer)
 
     if c1s < c2s:
         c1 = prec[-padlen:] + c1 + mid[:padlen]
@@ -173,7 +178,12 @@ def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, 
               'mid': mid,
               'sen': ' '.join(mwords),
               'compa1': compa1,
-              'compa2': compa2}
+              'compa2': compa2,
+              'semclass1': semclass1,
+              'semclass2': semclass2,
+              'semclass3': semclass3,
+              'semclass4': semclass4,
+              'semclass5': semclass5}
     return datum;
 
 def add_none_rel(fn, hpair, sens, rels, vocab, hlen, mask=False, mid_lmax=None, padlen=0, hstop={}, hproblem={}, htreatment={}, htest={}, skip_concept=False):
@@ -254,6 +264,9 @@ def load_con(fncon, htrp, htep, hpp):
 def load_rel(fnrel, sens, htrp, htep, hpp, vocab, hlen, trp_data, tep_data, pp_data, mask=False, padlen=0, hstop={}, hproblem={}, htreatment={}, htest={}, skip_concept=False, pip_reorder=False):
     sen_seen = {}
     fnroot = re.sub(r'^.*/', '', fnrel)
+
+
+    wordnet_lemmatizer = WordNetLemmatizer()  # semclass
     with open(fnrel, 'r') as f:
         lc = 0; trp_mid_lmax = 0; tep_mid_lmax = 0; pp_mid_lmax = 0
         for ln in f:
@@ -275,9 +288,9 @@ def load_rel(fnrel, sens, htrp, htep, hpp, vocab, hlen, trp_data, tep_data, pp_d
                     sen_seen[senid] = 1
                 iid = '%s:%s (%d,%d) (%d,%d)' % (fnroot, senid, c1s, c1e, c2s, c2e)
                 if pip_reorder and rel == 'PIP':
-                    datum = build_inst(iid, min(c1s,c2s), min(c1e,c2e), max(c1s,c2s), max(c1e,c2e), sen, vocab, hlen, rel, padlen=padlen, hstop=hstop, hproblem=hproblem[senid], htreatment=htreatment[senid], htest=htest[senid], mask=mask, skip_concept=skip_concept)
+                    datum = build_inst(iid, min(c1s,c2s), min(c1e,c2e), max(c1s,c2s), max(c1e,c2e), sen, vocab, hlen, rel, padlen=padlen, hstop=hstop, hproblem=hproblem[senid], htreatment=htreatment[senid], htest=htest[senid], mask=mask, skip_concept=skip_concept, lemmatizer=wordnet_lemmatizer)
                 else:
-                    datum = build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel, padlen=padlen, hstop=hstop, hproblem=hproblem[senid], htreatment=htreatment[senid], htest=htest[senid], mask=mask, skip_concept=skip_concept)
+                    datum = build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel, padlen=padlen, hstop=hstop, hproblem=hproblem[senid], htreatment=htreatment[senid], htest=htest[senid], mask=mask, skip_concept=skip_concept, lemmatizer=wordnet_lemmatizer)
                 midlen = max(c1s,c2s) - min(c1e,c2e)
                 con_pair = ((c1s, c1e), (c2s, c2e))
                 con_pair2 = ((c2s, c2e), (c1s, c1e))
