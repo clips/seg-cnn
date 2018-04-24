@@ -76,7 +76,7 @@ def read_drugbank(f="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets/drugbank
     return drug_to_id, id_to_indication, id_to_adr
 
 
-def drugbank_compa(prob, treat, drug_to_id, id_to_info):
+def drugbank_compa(prob, treat, drug_to_id, id_to_info, scale_fac=1):
     """
 
     :param prob: list of words
@@ -88,12 +88,12 @@ def drugbank_compa(prob, treat, drug_to_id, id_to_info):
     for w_treat in treat:
         if w_treat in drug_to_id:
             if set(prob) & id_to_info[drug_to_id[w_treat]]:
-                return 1.
+                return 1.*scale_fac
 
-    return -1.
+    return -1.*scale_fac
 
 
-def compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_info):
+def compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_info, scale_fac=1):
     """
     :param c1: list of words constituting the first concept
     :param c2: list of words constituting a concept
@@ -104,30 +104,31 @@ def compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_info):
     :return: a compatibility score
     """
     if c1t == "problem" and c2t == "treatment":
-        compa = drugbank_compa(c1, c2, drug_to_id, id_to_info)
+        compa = drugbank_compa(c1, c2, drug_to_id, id_to_info, scale_fac)
     elif c1t == "treatment" and c2t == "problem":
-        compa = drugbank_compa(c2, c1, drug_to_id, id_to_info)
+        compa = drugbank_compa(c2, c1, drug_to_id, id_to_info, scale_fac)
     else:
-        compa = -1.
+        compa = -1.*scale_fac
 
     return compa
 
 
-def semclass(txt, lexicon, rel, lemmatizer=None):
+def semclass(txt, lexicon, rel, lemmatizer=None, scale_fac=1):
     """
     :param txt:
     :param lexicon:
     :param lemmatizer: WordNetLemmatizer from NLTK
     :return:
     """
-    f_vec = np.array([-1.] * len(lexicon.keys()))  # trp->5
-    mapping = dict(zip(lexicon.keys(), range(len(lexicon.keys()))))
-    for w in txt:
-        for sem_cl, syns in lexicon.items():
-            if lemmatizer is not None:
-                w = lemmatizer.lemmatize(w.lower(), pos="v")
-            if w in syns:
-                f_vec[mapping[sem_cl]] = 1.
+    f_vec = np.array([-1.*scale_fac] * 5)  # * len(lexicon.keys()))  # trp->5
+    if lexicon is not None:
+        mapping = dict(zip(lexicon.keys(), range(len(lexicon.keys()))))
+        for w in txt:
+            for sem_cl, syns in lexicon.items():
+                if lemmatizer is not None:
+                    w = lemmatizer.lemmatize(w.lower(), pos="v")
+                if w in syns:
+                    f_vec[mapping[sem_cl]] = 1.*scale_fac
 
     return f_vec
 

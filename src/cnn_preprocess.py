@@ -134,7 +134,7 @@ def markup_sen(words, c1s, c1e, c2s, c2e, iid, hproblem, htreatment, htest):
         mwords = words[:c2s] + ['['] + words[c2s:c2e] + [']%s' % (c2t)] + words[c2e:c1s] + ['['] + words[c1s:c1e] + [']%s' % (c1t)] + words[c1e:]
     return mwords;
         
-def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, hstop={}, hproblem={}, htreatment={}, htest={}, mask=False, skip_concept=False, lemmatizer=None):
+def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, hstop={}, hproblem={}, htreatment={}, htest={}, mask=False, skip_concept=False, lemmatizer=None, scale_fac=1):
     words = sen.split()
     hmask = load_mask(words, iid)
     c1 = clean_wds(fmask(words, c1s, c1e, hmask), hstop, strict=False)
@@ -150,11 +150,18 @@ def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, 
     hlen[cts]['c2'] = max(hlen[cts]['c2'], len(c2))
     hlen[cts]['mid'] = max(hlen[cts]['mid'], len(mid))
 
-    #compa1 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_indication)
-    #compa2 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_adr)
-    compa1 = 1.
-    compa2 = 1.
-    semclass1, semclass2, semclass3, semclass4, semclass5 = semclass(mid, lexica["lexicon"], rel, lemmatizer)
+    compa1 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_indication, scale_fac*0)  # *0: ignore feature
+    compa2 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_adr, scale_fac*0)  # *0: ignore feature
+
+    if rel.lower().startswith("tr"):
+        lexicon = lexica["trp"]
+    elif rel.lower().startswith("te"):
+        lexicon = lexica["tep"]
+    else:
+        lexicon = None
+
+    semclass1, semclass2, semclass3, semclass4, semclass5 = semclass(prec+mid+succ, lexicon, rel, lemmatizer, scale_fac)
+    #semclass1, semclass2, semclass3, semclass4, semclass5 = [scale_fac]*5
 
     if c1s < c2s:
         c1 = prec[-padlen:] + c1 + mid[:padlen]
@@ -186,7 +193,7 @@ def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, 
               'semclass5': semclass5}
     return datum;
 
-def add_none_rel(fn, hpair, sens, rels, vocab, hlen, mask=False, mid_lmax=None, padlen=0, hstop={}, hproblem={}, htreatment={}, htest={}, skip_concept=False):
+def add_none_rel(fn, hpair, sens, rels, vocab, hlen, mask=False, mid_lmax=None, padlen=0, hstop={}, hproblem={}, htreatment={}, htest={}, skip_concept=False, scale_fac=1):
     for senid in hpair:
         for con_pair in hpair[senid]:
             c1s = con_pair[0][0]
@@ -199,7 +206,7 @@ def add_none_rel(fn, hpair, sens, rels, vocab, hlen, mask=False, mid_lmax=None, 
             if mid_lmax != None and midlen > mid_lmax:
                 continue
 
-            datum = build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, padlen=padlen, hstop=hstop, hproblem=hproblem[senid], htreatment=htreatment[senid], htest=htest[senid], mask=mask, skip_concept=skip_concept)
+            datum = build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, padlen=padlen, hstop=hstop, hproblem=hproblem[senid], htreatment=htreatment[senid], htest=htest[senid], mask=mask, skip_concept=skip_concept, scale_fac=scale_fac)
 
             if datum != None:
                 rels.append(datum)
@@ -261,7 +268,7 @@ def load_con(fncon, htrp, htep, hpp):
                         print('collapsed %s and %s in %d in %s' % (p1, p2, senid, fncon))
     return (hproblem, htreatment, htest)
 
-def load_rel(fnrel, sens, htrp, htep, hpp, vocab, hlen, trp_data, tep_data, pp_data, mask=False, padlen=0, hstop={}, hproblem={}, htreatment={}, htest={}, skip_concept=False, pip_reorder=False):
+def load_rel(fnrel, sens, htrp, htep, hpp, vocab, hlen, trp_data, tep_data, pp_data, mask=False, padlen=0, hstop={}, hproblem={}, htreatment={}, htest={}, skip_concept=False, pip_reorder=False, scale_fac=1):
     sen_seen = {}
     fnroot = re.sub(r'^.*/', '', fnrel)
 
@@ -288,9 +295,9 @@ def load_rel(fnrel, sens, htrp, htep, hpp, vocab, hlen, trp_data, tep_data, pp_d
                     sen_seen[senid] = 1
                 iid = '%s:%s (%d,%d) (%d,%d)' % (fnroot, senid, c1s, c1e, c2s, c2e)
                 if pip_reorder and rel == 'PIP':
-                    datum = build_inst(iid, min(c1s,c2s), min(c1e,c2e), max(c1s,c2s), max(c1e,c2e), sen, vocab, hlen, rel, padlen=padlen, hstop=hstop, hproblem=hproblem[senid], htreatment=htreatment[senid], htest=htest[senid], mask=mask, skip_concept=skip_concept, lemmatizer=wordnet_lemmatizer)
+                    datum = build_inst(iid, min(c1s,c2s), min(c1e,c2e), max(c1s,c2s), max(c1e,c2e), sen, vocab, hlen, rel, padlen=padlen, hstop=hstop, hproblem=hproblem[senid], htreatment=htreatment[senid], htest=htest[senid], mask=mask, skip_concept=skip_concept, lemmatizer=wordnet_lemmatizer, scale_fac=scale_fac)
                 else:
-                    datum = build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel, padlen=padlen, hstop=hstop, hproblem=hproblem[senid], htreatment=htreatment[senid], htest=htest[senid], mask=mask, skip_concept=skip_concept, lemmatizer=wordnet_lemmatizer)
+                    datum = build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel, padlen=padlen, hstop=hstop, hproblem=hproblem[senid], htreatment=htreatment[senid], htest=htest[senid], mask=mask, skip_concept=skip_concept, lemmatizer=wordnet_lemmatizer, scale_fac=scale_fac)
                 midlen = max(c1s,c2s) - min(c1e,c2e)
                 con_pair = ((c1s, c1e), (c2s, c2e))
                 con_pair2 = ((c2s, c2e), (c1s, c1e))
@@ -317,13 +324,13 @@ def load_rel(fnrel, sens, htrp, htep, hpp, vocab, hlen, trp_data, tep_data, pp_d
                     print('unrecognized rel %s' % (rel))
             else:
                 print('non-matching line %d in %s' % (lc, fnrel))
-        add_none_rel(fnroot, htrp, sens, trp_data, vocab, hlen, mask=mask, padlen=padlen, hstop=hstop, hproblem=hproblem, htreatment=htreatment, htest=htest, skip_concept=skip_concept) 
-        add_none_rel(fnroot, htep, sens, tep_data, vocab, hlen, mask=mask, padlen=padlen, hstop=hstop, hproblem=hproblem, htreatment=htreatment, htest=htest, skip_concept=skip_concept) 
-        add_none_rel(fnroot, hpp, sens, pp_data, vocab, hlen, mask=mask, padlen=padlen, hstop=hstop, hproblem=hproblem, htreatment=htreatment, htest=htest, skip_concept=skip_concept) 
+        add_none_rel(fnroot, htrp, sens, trp_data, vocab, hlen, mask=mask, padlen=padlen, hstop=hstop, hproblem=hproblem, htreatment=htreatment, htest=htest, skip_concept=skip_concept, scale_fac=scale_fac)
+        add_none_rel(fnroot, htep, sens, tep_data, vocab, hlen, mask=mask, padlen=padlen, hstop=hstop, hproblem=hproblem, htreatment=htreatment, htest=htest, skip_concept=skip_concept, scale_fac=scale_fac)
+        add_none_rel(fnroot, hpp, sens, pp_data, vocab, hlen, mask=mask, padlen=padlen, hstop=hstop, hproblem=hproblem, htreatment=htreatment, htest=htest, skip_concept=skip_concept, scale_fac=scale_fac)
     return;
 
                             
-def build_data(dn, vocab, hlen, mask=False, padlen=0, hstop={}, skip_concept=False, pip_reorder=False):
+def build_data(dn, vocab, hlen, mask=False, padlen=0, hstop={}, skip_concept=False, pip_reorder=False, scale_fac=1):
     """
     Loads data 
     """
@@ -335,7 +342,6 @@ def build_data(dn, vocab, hlen, mask=False, padlen=0, hstop={}, skip_concept=Fal
     dncon = '%s/concept' % (dn)
     fc = 0
 
-    #print("dbg: taking data subsets (10 file in each dir)...")
     for fntxt in os.listdir(dntxt):
         htrp = defaultdict(dict)
         htep = defaultdict(dict)
@@ -355,13 +361,13 @@ def build_data(dn, vocab, hlen, mask=False, padlen=0, hstop={}, skip_concept=Fal
         (hproblem, htreatment, htest) = load_con('%s/%s' % (dncon, fncon), htrp, htep, hpp)
 
         # side effect: updates trp/tep/pp_data:
-        load_rel('%s/%s' % (dnrel, fnrel), sens, htrp, htep, hpp, vocab, hlen, trp_data, tep_data, pp_data, mask=mask, padlen=padlen, hstop=hstop, hproblem=hproblem, htreatment=htreatment, htest=htest, skip_concept=skip_concept, pip_reorder=pip_reorder)
+        load_rel('%s/%s' % (dnrel, fnrel), sens, htrp, htep, hpp, vocab, hlen, trp_data, tep_data, pp_data, mask=mask, padlen=padlen, hstop=hstop, hproblem=hproblem, htreatment=htreatment, htest=htest, skip_concept=skip_concept, pip_reorder=pip_reorder, scale_fac=scale_fac)
 
     print(fc)
 
     return trp_data, tep_data, pp_data
 
-def build_train_test_dev(cdn='/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets/i2b2-2010/', hlen = defaultdict(lambda:defaultdict(float)), padlen=0, fnstop=None, skip_concept=False, pip_reorder=False):
+def build_train_test_dev(cdn='/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets/i2b2-2010/', hlen = defaultdict(lambda:defaultdict(float)), padlen=0, fnstop=None, skip_concept=False, pip_reorder=False, scale_fac=1):
     hstop = {}; vocab = defaultdict(float)
     if fnstop != None:
         hstop=load_stoplist(fnstop)
@@ -376,33 +382,33 @@ def build_train_test_dev(cdn='/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets
     #        'mid': mid,
     #        'sen': ' '.join(mwords),
     #        'compa': compa_c1c2}
-    trp_beth_tr, tep_beth_tr, pp_beth_tr = build_data('%s/concept_assertion_relation_training_data/beth' % (cdn), vocab, hlen, mask=True, padlen=padlen, hstop=hstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
+    trp_beth_tr, tep_beth_tr, pp_beth_tr = build_data('%s/concept_assertion_relation_training_data/beth' % (cdn), vocab, hlen, mask=True, padlen=padlen, hstop=hstop, skip_concept=skip_concept, pip_reorder=pip_reorder, scale_fac=scale_fac)
     print('beth_tr %d' % (len(trp_beth_tr)))
     print('beth_te %d' % (len(tep_beth_tr)))
     print('beth_p %d' % (len(pp_beth_tr)))
 
-    trp_partners_tr, tep_partners_tr, pp_partners_tr = build_data('%s/concept_assertion_relation_training_data/partners' % (cdn), vocab, hlen, padlen=padlen, hstop=hstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
+    trp_partners_tr, tep_partners_tr, pp_partners_tr = build_data('%s/concept_assertion_relation_training_data/partners' % (cdn), vocab, hlen, padlen=padlen, hstop=hstop, skip_concept=skip_concept, pip_reorder=pip_reorder, scale_fac=scale_fac)
     print('partners_tr %d' % (len(trp_partners_tr)))
     print('partners_te %d' % (len(tep_partners_tr)))
     print('partners_p %d' % (len(pp_partners_tr)))
 
     trp_fromtest_tr, tep_fromtest_tr, pp_fromtest_tr = build_data('%s/concept_assertion_relation_training_data/from_test' % (cdn), vocab,
                                                       hlen, mask=True, padlen=padlen, hstop=hstop,
-                                                      skip_concept=skip_concept, pip_reorder=pip_reorder)
+                                                      skip_concept=skip_concept, pip_reorder=pip_reorder, scale_fac=scale_fac)
     print('fromtest_tr %d' % (len(trp_fromtest_tr)))
     print('fromtest_te %d' % (len(tep_fromtest_tr)))
     print('fromtest_p %d' % (len(pp_fromtest_tr)))
 
     trp_rel_te, tep_rel_te, pp_rel_te = build_data('%s/reference_standard_for_test_data' % (cdn), vocab, hlen,
                                                    mask=True, padlen=padlen, hstop=hstop, skip_concept=skip_concept,
-                                                   pip_reorder=pip_reorder)
+                                                   pip_reorder=pip_reorder, scale_fac=scale_fac)
     print('test_tr %d' % (len(trp_rel_te)))
     print('test_te %d' % (len(tep_rel_te)))
     print('test_p %d' % (len(pp_rel_te)))
 
     trp_rel_de, tep_rel_de, pp_rel_de = build_data('%s/concept_assertion_relation_dev_data' % (cdn), vocab, hlen,
                                                    mask=True, padlen=padlen, hstop=hstop, skip_concept=skip_concept,
-                                                   pip_reorder=pip_reorder)
+                                                   pip_reorder=pip_reorder, scale_fac=scale_fac)
     print('dev_tr %d' % (len(trp_rel_de)))
     print('dev_te %d' % (len(tep_rel_de)))
     print('dev_p %d' % (len(pp_rel_de)))
@@ -459,8 +465,8 @@ def sample_fn_test(cdn='/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets/i2b2-
         os.rename(cdn + "reference_standard_for_test_data/rel/{}".format(os.path.splitext(base_fn)[0] + ".rel"), new_dev_dir + "rel/" + os.path.splitext(base_fn)[0] + ".rel")
 
 
-def embed_train_test_dev(fnem, fnwid='../data/vocab.txt', fndata='../data/semrel.p', padlen=0, fnstop=None, skip_concept=True, pip_reorder=False, binEmb=False):
-    trp_rel_tr, tep_rel_tr, pp_rel_tr, trp_rel_te, tep_rel_te, pp_rel_te, trp_rel_de, tep_rel_de, pp_rel_de, vocab, hlen = build_train_test_dev(padlen=padlen, fnstop=fnstop, skip_concept=skip_concept, pip_reorder=pip_reorder)
+def embed_train_test_dev(fnem, fnwid='../data/vocab.txt', fndata='../data/semrel.p', padlen=0, fnstop=None, skip_concept=True, pip_reorder=False, binEmb=False, scale_fac=1):
+    trp_rel_tr, tep_rel_tr, pp_rel_tr, trp_rel_te, tep_rel_te, pp_rel_te, trp_rel_de, tep_rel_de, pp_rel_de, vocab, hlen = build_train_test_dev(padlen=padlen, fnstop=fnstop, skip_concept=skip_concept, pip_reorder=pip_reorder, scale_fac=scale_fac)
     fwid = open(fnwid, 'w')
     for wd in sorted(vocab.keys()):
         if vocab[wd] >= 1:

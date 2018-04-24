@@ -655,7 +655,6 @@ if __name__=="__main__":
     fdata = open(fndata,"rb")
     x = cPickle.load(fdata)
     fdata.close()
-    print("dbg: using data subsets (10 file in each dir)...")
     trp_rel_tr, tep_rel_tr, pp_rel_tr, trp_rel_te, tep_rel_te, pp_rel_te, trp_rel_de, tep_rel_de, pp_rel_de, vocab, hlen, mem, hwoov, hwid = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13]
     for cts in hlen.keys():
         hlen[cts]['c1'] += 2*pad
@@ -698,7 +697,7 @@ if __name__=="__main__":
                                                  hidden_units=[l1_nhu,6],
                                                  activations=[ReLU],
                                                  shuffle_batch=True,
-                                                 n_epochs=10,
+                                                 n_epochs=15,
                                                  sqr_norm_lim=9,
                                                  non_static=non_static,
                                                  batch_size=50,
@@ -730,7 +729,7 @@ if __name__=="__main__":
                                                  conv_non_linear="relu",
                                                  hidden_units=[l1_nhu,3],
                                                  shuffle_batch=True,
-                                                 n_epochs=25,
+                                                 n_epochs=30,
                                                  sqr_norm_lim=9,
                                                  non_static=non_static,
                                                  batch_size=50,
