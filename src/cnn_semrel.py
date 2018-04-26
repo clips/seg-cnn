@@ -28,6 +28,9 @@ hpp_rel = {'PIP':1, 'None':0}
 def ReLU(x):
     y = T.maximum(0.0, x)
     return(y)
+def ELU(x):
+    y = T.exp(x) - 1 if x <= 0 else x
+    return y
 def Sigmoid(x):
     y = T.nnet.sigmoid(x)
     return(y)

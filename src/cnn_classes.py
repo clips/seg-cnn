@@ -13,6 +13,9 @@ import theano.tensor as T
 from theano.tensor.signal import pool
 from theano.tensor.nnet import conv
 
+def ELU(x):
+    y = T.exp(x) - 1 if x <= 0 else x
+    return y
 def ReLU(x):
     y = T.maximum(0.0, x)
     return(y)
@@ -37,7 +40,7 @@ class HiddenLayer(object):
         self.activation = activation
 
         if W is None:            
-            if activation.func_name == "ReLU":
+            if activation.func_name == "ReLU" or activation.func_name == "ELU":
                 W_values = numpy.asarray(0.01 * rng.standard_normal(size=(n_in, n_out)), dtype=theano.config.floatX)
             else:                
                 W_values = numpy.asarray(rng.uniform(low=-numpy.sqrt(6. / (n_in + n_out)), high=numpy.sqrt(6. / (n_in + n_out)),
@@ -413,6 +416,9 @@ class LeNetConvPoolLayer(object):
             self.output = pool.pool_2d(input=conv_out_tanh, ds=self.poolsize, ignore_border=True)
         elif self.non_linear=="relu":
             conv_out_tanh = ReLU(conv_out + self.b.dimshuffle('x', 0, 'x', 'x'))
+            self.output = pool.pool_2d(input=conv_out_tanh, ds=self.poolsize, ignore_border=True)
+        elif self.non_linear=="elu":
+            conv_out_tanh = ELU(conv_out + self.b.dimshuffle('x', 0, 'x', 'x'))
             self.output = pool.pool_2d(input=conv_out_tanh, ds=self.poolsize, ignore_border=True)
         else:
             pooled_out = pool.pool_2d(input=conv_out, ds=self.poolsize, ignore_border=True)
