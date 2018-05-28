@@ -29,8 +29,8 @@ def ReLU(x):
     y = T.maximum(0.0, x)
     return(y)
 def ELU(x):
-    y = T.exp(x) - 1 if x <= 0 else x
-    return y
+    y = T.nnet.elu(x)
+    return (y)
 def Sigmoid(x):
     y = T.nnet.sigmoid(x)
     return(y)
@@ -311,6 +311,7 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
                                            semclass4.reshape((semclass4.shape[0], 1)),
                                            semclass5.reshape((semclass5.shape[0], 1)))
     test_y_pred = classifier.predict(test_layer1_input)
+
     test_error = T.mean(T.neq(test_y_pred, y))
     test_model_all = theano.function([c1,c2,prec,mid,succ,compa1,compa2,semclass1,semclass2,semclass3,semclass4,semclass5], test_y_pred, allow_input_downcast = True)
     
@@ -350,6 +351,7 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
         if dev_mif >= best_dev_perf:
             best_dev_perf = dev_mif
             test_pred = test_model_all(c1_te,c2_te,prec_te,mid_te,succ_te,compa1_te,compa2_te,semclass1_te,semclass2_te,semclass3_te,semclass4_te,semclass5_te)
+            print(test_pred)
             test_errors = test_pred != y_te
             err_ind = [j for j,x in enumerate(test_errors) if x==1]
             test_cm = su.confMat(y_te, test_pred, hidden_units[1])
@@ -503,7 +505,7 @@ def merge_segs(c1, c2, prec, mid, succ, y, iid, compa1, compa2, semclass1, semcl
         print('down-sampled dist %s %s' % (np.unique(data[:,hi_seg['y']], return_counts=True)))
     return data, hi_seg;
 
-def make_idx_data_train_test_dev(rel_tr, rel_te, rel_de, word_idx_map, hlen, hrel, k=300, filter_h=5, down_sampling=None):
+def make_idx_data_train_test_dev(rel_tr, rel_te, rel_de, word_idx_map, hlen, hrel, k=300, filter_h=5, down_sampling=None, n_train=None):
     """
     Transforms sentences into a 2-d matrix.
     """
@@ -616,7 +618,7 @@ def make_idx_data_train_test_dev(rel_tr, rel_te, rel_de, word_idx_map, hlen, hre
     train, hi_seg_tr = merge_segs(c1_tr, c2_tr, prec_tr, mid_tr, succ_tr, y_tr, iid_tr, compa1_tr, compa2_tr, semclass1_tr, semclass2_tr, semclass3_tr, semclass4_tr, semclass5_tr, down_sampling=down_sampling)
     test, hi_seg_te = merge_segs(c1_te, c2_te, prec_te, mid_te, succ_te, y_te, iid_te, compa1_te, compa2_te, semclass1_te, semclass2_te, semclass3_te, semclass4_te, semclass5_te)
     dev, hi_seg_de = merge_segs(c1_de, c2_de, prec_de, mid_de, succ_de, y_de, iid_de, compa1_de, compa2_de, semclass1_de, semclass2_de, semclass3_de, semclass4_de, semclass5_de)
-    return [train, test, dev, hi_seg_tr, hi_seg_te, hi_seg_de]
+    return [train[:n_train] if n_train is not None else train, test, dev, hi_seg_tr, hi_seg_te, hi_seg_de]
   
    
 if __name__=="__main__":
@@ -654,6 +656,14 @@ if __name__=="__main__":
         print('example: -n_runs1')
         sys.exit(1)
 
+    n_train = sys.argv[8]
+    mo = re.search('-n_train(\d+)', n_train)
+    if mo:
+        n_train = int(mo.group(1))
+    else:
+        print('example: -n_train1000')
+        sys.exit(1)
+
     fndata = '../data/semrel_pp%s_pad%s.p' % (img_w, pad)
     fdata = open(fndata,"rb")
     x = cPickle.load(fdata)
@@ -681,7 +691,7 @@ if __name__=="__main__":
     results = []
 
     if task=='-trp':
-        trp_data = make_idx_data_train_test_dev(trp_rel_tr, trp_rel_te, trp_rel_de, hwid, hlen['problem_treatment'], htrp_rel, k=img_w, filter_h=5, down_sampling=None)
+        trp_data = make_idx_data_train_test_dev(trp_rel_tr, trp_rel_te, trp_rel_de, hwid, hlen['problem_treatment'], htrp_rel, k=img_w, filter_h=5, down_sampling=None, n_train=n_train)
         mipre_runs = []
         mirec_runs = []
         mif_runs = []
@@ -700,11 +710,11 @@ if __name__=="__main__":
                                                  hidden_units=[l1_nhu,6],
                                                  activations=[ReLU],
                                                  shuffle_batch=True,
-                                                 n_epochs=15,
+                                                 n_epochs=1,
                                                  sqr_norm_lim=9,
                                                  non_static=non_static,
                                                  batch_size=50,
-                                                 dropout_rate=[0.3])
+                                                 dropout_rate=[0.0])
             print("msg: trp img_w: %s, l1_nhu: %s, pad: %s, mipre: %s, mirec: %s, mif: %s, mipre_de: %s, mirec_de: %s, mif_de: %s" % (img_w, l1_nhu, pad, mipre, mirec, mif, mipre_de, mirec_de, mif_de))
             mipre_runs.append(mipre)
             mirec_runs.append(mirec)
@@ -736,7 +746,7 @@ if __name__=="__main__":
                                                  sqr_norm_lim=9,
                                                  non_static=non_static,
                                                  batch_size=50,
-                                                 dropout_rate=[0.5])
+                                                 dropout_rate=[0.0])
             print("msg: tep img_w: %s, l1_nhu: %s, pad: %s, mipre: %s, mirec: %s, mif: %s, mipre_de: %s, mirec_de: %s, mif_de: %s" % (img_w, l1_nhu, pad, mipre, mirec, mif, mipre_de, mirec_de, mif_de))
             mipre_runs.append(mipre)
             mirec_runs.append(mirec)
@@ -764,11 +774,11 @@ if __name__=="__main__":
                                                  conv_non_linear="relu",
                                                  hidden_units=[l1_nhu,2],
                                                  shuffle_batch=True,
-                                                 n_epochs=35,
+                                                 n_epochs=30,
                                                  sqr_norm_lim=9,
                                                  non_static=non_static,
                                                  batch_size=50,
-                                                 dropout_rate=[0.5])
+                                                 dropout_rate=[0.0])
             print("msg: pp img_w: %s, l1_nhu: %s, pad: %s, mipre: %s, mirec: %s, mif: %s, mipre_de: %s, mirec_de: %s, mif_de: %s" % (img_w, l1_nhu, pad, mipre, mirec, mif, mipre_de, mirec_de, mif_de))
             mipre_runs.append(mipre)
             mirec_runs.append(mirec)

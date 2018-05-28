@@ -155,12 +155,15 @@ def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, 
 
     if rel.lower().startswith("tr"):
         lexicon = lexica["trp"]
+        txt = mid
     elif rel.lower().startswith("te"):
         lexicon = lexica["tep"]
+        txt = prec + mid + succ
     else:
         lexicon = None
+        txt = None
 
-    semclass1, semclass2, semclass3, semclass4, semclass5 = semclass(prec+mid+succ, lexicon, rel, lemmatizer, scale_fac)
+    semclass1, semclass2, semclass3, semclass4, semclass5 = semclass(txt, lexicon, rel, lemmatizer, scale_fac)
     #semclass1, semclass2, semclass3, semclass4, semclass5 = [scale_fac]*5
 
     if c1s < c2s:

@@ -7,6 +7,8 @@ yluo-12/26/2016 changed downsample.max_pool_2d to pool.pool_2d (theano dev)
 
 import numpy
 import scipy as sp
+import os
+os.environ["THEANO_FLAGS"] = "mode=FAST_RUN,device=gpu,floatX=float32"
 import theano.tensor.shared_randomstreams
 import theano
 import theano.tensor as T
@@ -14,8 +16,8 @@ from theano.tensor.signal import pool
 from theano.tensor.nnet import conv
 
 def ELU(x):
-    y = T.exp(x) - 1 if x <= 0 else x
-    return y
+    y = T.nnet.elu(x)
+    return (y)
 def ReLU(x):
     y = T.maximum(0.0, x)
     return(y)
@@ -399,7 +401,7 @@ class LeNetConvPoolLayer(object):
         #   pooling size
         fan_out = (filter_shape[0] * numpy.prod(filter_shape[2:]) /numpy.prod(poolsize))
         # initialize weights with random weights
-        if self.non_linear=="none" or self.non_linear=="relu":
+        if self.non_linear=="none" or self.non_linear=="relu" or self.non_linear=="elu":
             self.W = theano.shared(numpy.asarray(rng.uniform(low=-0.01,high=0.01,size=filter_shape), 
                                                 dtype=theano.config.floatX),borrow=True,name="W_conv")
         else:
@@ -434,8 +436,11 @@ class LeNetConvPoolLayer(object):
         if self.non_linear=="tanh":
             conv_out_tanh = T.tanh(conv_out + self.b.dimshuffle('x', 0, 'x', 'x'))
             output = pool.pool_2d(input=conv_out_tanh, ds=self.poolsize, ignore_border=True)
-        if self.non_linear=="relu":
+        elif self.non_linear=="relu":
             conv_out_tanh = ReLU(conv_out + self.b.dimshuffle('x', 0, 'x', 'x'))
+            output = pool.pool_2d(input=conv_out_tanh, ds=self.poolsize, ignore_border=True)
+        elif self.non_linear == "elu":
+            conv_out_tanh = ELU(conv_out + self.b.dimshuffle('x', 0, 'x', 'x'))
             output = pool.pool_2d(input=conv_out_tanh, ds=self.poolsize, ignore_border=True)
         else:
             pooled_out = pool.pool_2d(input=conv_out, ds=self.poolsize, ignore_border=True)
