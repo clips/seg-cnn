@@ -8,15 +8,27 @@ import cPickle
 from collections import defaultdict
 import re, os
 import data_util as du
-from background_knowledge import compatibility, read_drugbank
+from pmi import PMI
+from drugbank import compatibility, read_drugbank
+
+if not os.path.exists("../result"):
+    os.makedirs('../result')
 
 trp_rel = ['TrIP', 'TrWP', 'TrCP', 'TrAP', 'TrNAP']
 tep_rel = ['TeRP', 'TeCP']
 pp_rel = ['PIP']
 dosages = ['mg', 'bid', 'prn', 'qd', 'po', 'tid', 'qhs', 'qid', 'qod']
 
-drug_to_id, id_to_indication = read_drugbank()
+drugbank_feats = False
+pmi_feats = True
 
+if drugbank_feats:
+    drug_to_id, id_to_indication = read_drugbank()
+
+if pmi_feats:
+    pmi_inst = PMI(f_pmi='stanford_pmi_perBin_1d.json.gz', with_sem_type=False)
+    # pmi_inst = PMI(f_pmi = 'mimiciii_pmi.json.gz', with_sem_type = True)
+    # pmi_inst = PMI(f_pmi = 'pubmed_pmi.json.gz', with_sem_type = True)
 
 def load_stoplist(fn):
     ## in case you want to use stopword list, not really needed
@@ -146,7 +158,16 @@ def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, 
     hlen[cts]['c2'] = max(hlen[cts]['c2'], len(c2))
     hlen[cts]['mid'] = max(hlen[cts]['mid'], len(mid))
 
-    compa_c1c2 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_indication)
+    if drugbank_feats:
+        compa_c1c2 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_indication)
+    else:
+        compa_c1c2 = 1.
+
+    if pmi_feats:
+        pmi = pmi_inst.get_pmi(c1,c2, c1t, c2t)
+    else:
+        pmi = 1.
+
     if c1s < c2s:
         c1 = prec[-padlen:] + c1 + mid[:padlen]
         c2 = mid[-padlen:] + c2 + succ[:padlen]
@@ -167,8 +188,11 @@ def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, 
               'prec': prec,
               'succ': succ,
               'mid': mid,
-              'sen': ' '.join(mwords),
-              'compa': compa_c1c2}
+              'sen': ' '.join(mwords)}\
+
+    datum['compa'] = compa_c1c2
+    datum['pmi'] = pmi
+
     return datum;
 
 def add_none_rel(fn, hpair, sens, rels, vocab, hlen, mask=False, mid_lmax=None, padlen=0, hstop={}, hproblem={}, htreatment={}, htest={}, skip_concept=False):
@@ -301,7 +325,8 @@ def load_rel(fnrel, sens, htrp, htep, hpp, vocab, hlen, trp_data, tep_data, pp_d
                 print('non-matching line %d in %s' % (lc, fnrel))
         add_none_rel(fnroot, htrp, sens, trp_data, vocab, hlen, mask=mask, padlen=padlen, hstop=hstop, hproblem=hproblem, htreatment=htreatment, htest=htest, skip_concept=skip_concept) 
         add_none_rel(fnroot, htep, sens, tep_data, vocab, hlen, mask=mask, padlen=padlen, hstop=hstop, hproblem=hproblem, htreatment=htreatment, htest=htest, skip_concept=skip_concept) 
-        add_none_rel(fnroot, hpp, sens, pp_data, vocab, hlen, mask=mask, padlen=padlen, hstop=hstop, hproblem=hproblem, htreatment=htreatment, htest=htest, skip_concept=skip_concept) 
+        add_none_rel(fnroot, hpp, sens, pp_data, vocab, hlen, mask=mask, padlen=padlen, hstop=hstop, hproblem=hproblem, htreatment=htreatment, htest=htest, skip_concept=skip_concept)
+
     return;
 
                             
@@ -343,7 +368,7 @@ def build_data(dn, vocab, hlen, mask=False, padlen=0, hstop={}, skip_concept=Fal
 
     return trp_data, tep_data, pp_data
 
-def build_train_test_dev(cdn='/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets/i2b2-2010/', hlen = defaultdict(lambda:defaultdict(float)), padlen=0, fnstop=None, skip_concept=False, pip_reorder=False):
+def build_train_test_dev(cdn='/home/madhumita/PycharmProjects/seg_cnn/data/i2b2-2010-segcnn-splits', hlen = defaultdict(lambda:defaultdict(float)), padlen=0, fnstop=None, skip_concept=False, pip_reorder=False):
     hstop = {}; vocab = defaultdict(float)
     if fnstop != None:
         hstop=load_stoplist(fnstop)
@@ -392,11 +417,31 @@ def build_train_test_dev(cdn='/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets
     trp_rel_tr = trp_beth_tr + trp_partners_tr + trp_fromtest_tr
     tep_rel_tr = tep_beth_tr + tep_partners_tr + tep_fromtest_tr
     pp_rel_tr = pp_beth_tr + pp_partners_tr + pp_fromtest_tr
-    
+
+    if pmi_feats:
+        print("{} of {} instances have a PMI score in TrP relations in training set".format(get_pmi_cov(trp_rel_tr), len(trp_rel_tr)))
+        print("{} of {} instances have a PMI score in TeP relations in training set".format(get_pmi_cov(tep_rel_tr), len(tep_rel_tr)))
+        print("{} of {} instances have a PMI score in PP relations in training set".format(get_pmi_cov(pp_rel_tr), len(pp_rel_tr)))
+
+        print("{} of {} instances have a PMI score in TrP relations in dev set".format(get_pmi_cov(trp_rel_de), len(trp_rel_de)))
+        print("{} of {} instances have a PMI score in TeP relations in dev set".format(get_pmi_cov(tep_rel_de), len(tep_rel_de)))
+        print("{} of {} instances have a PMI score in PP relations in dev set".format(get_pmi_cov(pp_rel_de), len(pp_rel_de)))
+
+        print("{} of {} instances have a PMI score in TrP relations in test set".format(get_pmi_cov(trp_rel_te), len(trp_rel_te)))
+        print("{} of {} instances have a PMI score in TeP relations in test set".format(get_pmi_cov(tep_rel_te), len(tep_rel_te)))
+        print("{} of {} instances have a PMI score in PP relations in test set".format(get_pmi_cov(pp_rel_te), len(pp_rel_te)))
+
     return trp_rel_tr, tep_rel_tr, pp_rel_tr, trp_rel_te, tep_rel_te, pp_rel_te, trp_rel_de, tep_rel_de, pp_rel_de, vocab, hlen
 
+def get_pmi_cov(relations):
+    cov = 0
+    for cur_rel in relations:
+        if cur_rel['pmi'] != 0.: #math.isinf():
+            cov += 1
 
-def sample_fn_test(cdn='/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets/i2b2-2010/', n_to_train=102, n_to_dev=68):
+    return cov
+
+def sample_fn_test(cdn='/home/madhumita/PycharmProjects/seg_cnn/data/i2b2-2010-segcnn-splits/', n_to_train=102, n_to_dev=68):
     """
     Sample n_to_* filenames from test and move them to train/dev.
     :param cdn: test data directory
