@@ -3,7 +3,6 @@ from lxml import etree
 
 import re
 
-
 def process_ind(text, stopwords):
     """
     Apply a simple tokenizer and remove stopwords
@@ -107,6 +106,7 @@ def compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_indication):
         compa = 0.
 
     return compa
+
 
 
 if __name__ == "__main__":
