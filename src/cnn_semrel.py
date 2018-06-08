@@ -320,7 +320,7 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
     epoch = 0
     best_dev_perf = 0
     test_perf = 0       
-    cost_epoch = 0    
+    cost_epoch = 0
     while (epoch < n_epochs):
         start_time = time.time()
         epoch = epoch + 1
@@ -351,7 +351,6 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
         if dev_mif >= best_dev_perf:
             best_dev_perf = dev_mif
             test_pred = test_model_all(c1_te,c2_te,prec_te,mid_te,succ_te,compa1_te,compa2_te,semclass1_te,semclass2_te,semclass3_te,semclass4_te,semclass5_te)
-            print(test_pred)
             test_errors = test_pred != y_te
             err_ind = [j for j,x in enumerate(test_errors) if x==1]
             test_cm = su.confMat(y_te, test_pred, hidden_units[1])
@@ -710,7 +709,7 @@ if __name__=="__main__":
                                                  hidden_units=[l1_nhu,6],
                                                  activations=[ReLU],
                                                  shuffle_batch=True,
-                                                 n_epochs=1,
+                                                 n_epochs=30,
                                                  sqr_norm_lim=9,
                                                  non_static=non_static,
                                                  batch_size=50,
