@@ -1,6 +1,8 @@
 """ yluo - 05/01/2016 creation
 Preprocess i2b2/VA relations to generate data files ready to used by Seg-CNN
 """
+# from __future__ import division
+
 from file_util import get_file_list
 
 import numpy as np
@@ -20,15 +22,15 @@ pp_rel = ['PIP']
 dosages = ['mg', 'bid', 'prn', 'qd', 'po', 'tid', 'qhs', 'qid', 'qod']
 
 drugbank_feats = False
-pmi_feats = True
+pmi_feats = False
 
 if drugbank_feats:
     drug_to_id, id_to_indication = read_drugbank()
 
 if pmi_feats:
-    pmi_inst = PMI(f_pmi='stanford_pmi_perBin_1d.json.gz', with_sem_type=False)
-    # pmi_inst = PMI(f_pmi = 'mimiciii_pmi.json.gz', with_sem_type = True)
-    # pmi_inst = PMI(f_pmi = 'pubmed_pmi.json.gz', with_sem_type = True)
+    # pmi_inst = PMI(f_pmi='stanford_pmi_perBin_1d.txt.gz', with_sem_type=False)
+    pmi_inst = PMI(f_pmi = 'mimiciii_pmi.txt.gz', with_sem_type = True)
+    # pmi_inst = PMI(f_pmi = 'pubmed_pmi.txt.gz', with_sem_type = True)
 
 def load_stoplist(fn):
     ## in case you want to use stopword list, not really needed
@@ -439,7 +441,9 @@ def get_pmi_cov(relations):
         if cur_rel['pmi'] != 0.: #math.isinf():
             cov += 1
 
-    return cov
+    #percent_cov = cov / float(len(relations)) * 100.
+
+    return cov#, percent_cov
 
 def sample_fn_test(cdn='/home/madhumita/PycharmProjects/seg_cnn/data/i2b2-2010-segcnn-splits/', n_to_train=102, n_to_dev=68):
     """
