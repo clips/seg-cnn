@@ -106,7 +106,12 @@ def confint(seq):
     """
     return np.mean(seq) - (1.96 * np.std(seq)), np.mean(seq) + (1.96 * np.std(seq))
 
-
+def confint_cm(seq):
+    """
+    Computes 95% confidence intervals.
+    :param seq: list of numpy arrays with sample confusion matrices
+    """
+    return np.mean(seq, axis = 0) - (1.96 * np.std(seq, axis = 0)), np.mean(seq, axis = 0) + (1.96 * np.std(seq, axis = 0))
 
 
 
