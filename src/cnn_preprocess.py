@@ -22,7 +22,7 @@ pp_rel = ['PIP']
 dosages = ['mg', 'bid', 'prn', 'qd', 'po', 'tid', 'qhs', 'qid', 'qod']
 
 drugbank_feats = False
-pmi_feats = False
+pmi_feats = True
 
 if drugbank_feats:
     drug_to_id, id_to_indication = read_drugbank()
