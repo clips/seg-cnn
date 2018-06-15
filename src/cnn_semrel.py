@@ -362,7 +362,7 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
             mif_de = dev_mif
             print('mipre %s, mirec %s, mif %s' % (mipre, mirec, mif))
     cPickle.dump([y_te,test_pred], open(fnres, "wb"))
-    return (mipre, mirec, mif, mipre_de, mirec_de, mif_de)
+    return (mipre, mirec, mif, mipre_de, mirec_de, mif_de, test_cm)
 
 def shared_dataset(data_xy, iid=None, borrow=True):
         """ Function that loads the dataset into shared variables
@@ -618,8 +618,26 @@ def make_idx_data_train_test_dev(rel_tr, rel_te, rel_de, word_idx_map, hlen, hre
     test, hi_seg_te = merge_segs(c1_te, c2_te, prec_te, mid_te, succ_te, y_te, iid_te, compa1_te, compa2_te, semclass1_te, semclass2_te, semclass3_te, semclass4_te, semclass5_te)
     dev, hi_seg_de = merge_segs(c1_de, c2_de, prec_de, mid_de, succ_de, y_de, iid_de, compa1_de, compa2_de, semclass1_de, semclass2_de, semclass3_de, semclass4_de, semclass5_de)
     return [train[:n_train] if n_train is not None else train, test, dev, hi_seg_tr, hi_seg_te, hi_seg_de]
-  
-   
+
+
+def print_cm(cm, h_rel, sep="\t"):
+    ord_ys= [i[0] for i in sorted(h_rel.items(), key=lambda x: x[1])]
+    print(sep + sep.join(ord_ys))
+    for c, row in enumerate(cm):
+        print("{}{}".format(ord_ys[c], sep) + sep.join(row.astype(np.str)))
+
+def write_cm_R(cm, h_rel, dn):
+    """
+    Write out difference in two CMs for visualization with R.
+    """
+    ord_ys = [i[0] for i in sorted(h_rel.items(), key=lambda x: x[1])]
+    with open(dn+"cm", "w") as dh:
+        dh.write("System\tGold\tvalue\n")
+        for c_g, g in enumerate(cm):
+            for c_s, val in enumerate(g):
+                dh.write("{}\t{}\t{}\n".format(ord_ys[c_s], ord_ys[c_g], val))
+
+
 if __name__=="__main__":
     img_w = sys.argv[3]
     mo = re.search('-img_w(\d+)', img_w)
@@ -697,8 +715,9 @@ if __name__=="__main__":
         mipre_de_runs = []
         mirec_de_runs = []
         mif_de_runs = []
+        cm_te_runs = []
         for n_run in range(n_runs):
-            (mipre, mirec, mif, mipre_de, mirec_de, mif_de) = train_conv_net(trp_data, trp_rel_tr, trp_rel_te, trp_rel_de,
+            (mipre, mirec, mif, mipre_de, mirec_de, mif_de, test_cm) = train_conv_net(trp_data, trp_rel_tr, trp_rel_te, trp_rel_de,
                                                  hlen['problem_treatment'],
                                                  U,
                                                  fnres='../result/trp_img%s_nhu%s_pad%s.p' % (img_w, l1_nhu, pad),
@@ -721,6 +740,9 @@ if __name__=="__main__":
             mipre_de_runs.append(mipre_de)
             mirec_de_runs.append(mirec_de)
             mif_de_runs.append(mif_de)
+            cm_te_runs.append(test_cm)
+        print("Avg test confusion matrix:")
+        print_cm(np.mean(cm_te_runs, axis = 0), htrp_rel)
 
     if task=='-tep':
         tep_data = make_idx_data_train_test_dev(tep_rel_tr, tep_rel_te, tep_rel_de, hwid, hlen['problem_test'], htep_rel, k=img_w, filter_h=5)
@@ -730,8 +752,9 @@ if __name__=="__main__":
         mipre_de_runs = []
         mirec_de_runs = []
         mif_de_runs = []
+        cm_te_runs = []
         for n_run in range(n_runs):
-            (mipre, mirec, mif, mipre_de, mirec_de, mif_de) = train_conv_net(tep_data,tep_rel_tr, tep_rel_te, tep_rel_de,
+            (mipre, mirec, mif, mipre_de, mirec_de, mif_de, test_cm) = train_conv_net(tep_data,tep_rel_tr, tep_rel_te, tep_rel_de,
                                                  hlen['problem_test'],
                                                  U,
                                                  fnres='../result/tep_img%s_nhu%s_pad%s.p' % (img_w, l1_nhu, pad),
@@ -753,6 +776,9 @@ if __name__=="__main__":
             mipre_de_runs.append(mipre_de)
             mirec_de_runs.append(mirec_de)
             mif_de_runs.append(mif_de)
+            cm_te_runs.append(test_cm)
+        print("Avg test confusion matrix:")
+        print_cm(np.mean(cm_te_runs, axis = 0), htep_rel)
 
     if task=='-pp':
         pp_data = make_idx_data_train_test_dev(pp_rel_tr, pp_rel_te, pp_rel_de, hwid, hlen['problem_problem'], hpp_rel, k=img_w, filter_h=5, down_sampling=4)
@@ -762,8 +788,9 @@ if __name__=="__main__":
         mipre_de_runs = []
         mirec_de_runs = []
         mif_de_runs = []
+        cm_te_runs = []
         for n_run in range(n_runs):
-            (mipre, mirec, mif, mipre_de, mirec_de, mif_de) = train_conv_net(pp_data, pp_rel_tr, pp_rel_te, pp_rel_de,
+            (mipre, mirec, mif, mipre_de, mirec_de, mif_de, test_cm) = train_conv_net(pp_data, pp_rel_tr, pp_rel_te, pp_rel_de,
                                                  hlen['problem_problem'],
                                                  U,
                                                  fnres='../result/pp_img%s_nhu%s_pad%s.p' % (img_w, l1_nhu, pad),
@@ -785,6 +812,9 @@ if __name__=="__main__":
             mipre_de_runs.append(mipre_de)
             mirec_de_runs.append(mirec_de)
             mif_de_runs.append(mif_de)
+            cm_te_runs.append(test_cm)
+        print("Avg test confusion matrix:")
+        print_cm(np.mean(cm_te_runs, axis=0), hpp_rel)
 
     print("Avg mipre: {}; CI95: {}".format(np.mean(mipre_runs), su.confint(mipre_runs)))
     print("Avg mirec: {}; CI95: {}".format(np.mean(mirec_runs), su.confint(mirec_runs)))
