@@ -4,6 +4,12 @@ Call cnn_preprocess functions to generate data files ready to used by Seg-CNN
 import sys
 import cnn_preprocess as cp
 
+#print("Setting scale factor to 0: ignoring all external features.")
+#scale_fac=0
+
+print("Multiplying semclass with 0; getting compa")
+scale_fac=100
+
 if sys.argv[1] == "trp":
     print("Creating data with TRP optimal params.")
     img_w = 200
@@ -21,7 +27,6 @@ elif sys.argv[1] == "pp":
     fnwem = '/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets/clinical_embs/mimic_pubmed/mimic_pubmed_lower_shuf400.txt' # 200d
 
 fndata='../data/semrel_pp%s_pad%s.p' % (img_w, pad)
-scale_fac=100
 
 mem, hwoov, hwid = cp.embed_train_test_dev(fnwem, fndata=fndata, padlen=pad, scale_fac=scale_fac)
 

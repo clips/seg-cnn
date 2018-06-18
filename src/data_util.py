@@ -1,6 +1,8 @@
 """ yluo - 09/25/2014 creation
 common data reading, writing, and transforming utilities. 
 """
+from cnn_semrel import convert_write_cm_R, htrp_rel, htep_rel, hpp_rel
+
 __author__= """Yuan Luo (yuan.hypnos.luo@gmail.com)"""
 __revision__="0.5"
 
@@ -98,3 +100,34 @@ def indexEmbedding(fnem, fnwid, var = 0.25, rand_oov=False):
             wid = hwid[wd]
             mem[wid,:] = np.random.uniform(-var,var,vsize)
     return (mem, hwoov, hwid);
+
+def get_contrast_CMs():
+    # segcnn
+    convert_write_cm_R(result_f="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/segcnn_trp", h_rel=htrp_rel, dn="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/segcnn_trp_")
+    convert_write_cm_R(result_f="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/segcnn_tep",
+                       h_rel=htep_rel, dn="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/segcnn_tep_")
+    convert_write_cm_R(result_f="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/segcnn_pp",
+                       h_rel=hpp_rel, dn="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/segcnn_pp_")
+
+    convert_write_cm_R(result_f="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/compa_trp",
+                       h_rel=htrp_rel, dn="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/compa_trp_")
+    convert_write_cm_R(result_f="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/compa_tep",
+                       h_rel=htep_rel, dn="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/compa_tep_")
+    convert_write_cm_R(result_f="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/compa_pp",
+                       h_rel=hpp_rel, dn="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/compa_pp_")
+
+    convert_write_cm_R(result_f="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/semclass_trp", h_rel=htrp_rel, dn="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/semclass_trp_")
+    convert_write_cm_R(result_f="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/semclass_tep",
+                       h_rel=htep_rel, dn="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/semclass_tep_")
+
+    convert_write_cm_R(result_f="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/pmi_trp",
+                       h_rel=htrp_rel, dn="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/pmi_trp_")
+    convert_write_cm_R(result_f="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/pmi_tep",
+                       h_rel=htep_rel, dn="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/pmi_tep_")
+    convert_write_cm_R(result_f="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/pmi_pp",
+                       h_rel=hpp_rel, dn="/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Tools/seg_cnn/result/pmi_pp_")
+
+
+if __name__== "__main__":
+    get_contrast_CMs()
+

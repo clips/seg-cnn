@@ -628,7 +628,7 @@ def print_cm(cm, h_rel, sep="\t"):
 
 def write_cm_R(cm, h_rel, dn):
     """
-    Write out difference in two CMs for visualization with R.
+    Write out a CM for visualization with R.
     """
     ord_ys = [i[0] for i in sorted(h_rel.items(), key=lambda x: x[1])]
     with open(dn+"cm", "w") as dh:
@@ -636,6 +636,14 @@ def write_cm_R(cm, h_rel, dn):
         for c_g, g in enumerate(cm):
             for c_s, val in enumerate(g):
                 dh.write("{}\t{}\t{}\n".format(ord_ys[c_s], ord_ys[c_g], val))
+
+def convert_write_cm_R(result_f, h_rel, dn):
+    with open(result_f) as fh:
+        ls = fh.readlines()
+    cm_s = ls[ls.index("Avg test confusion matrix:\n")+2: -6]
+    assert cm_s[0].startswith("None")
+    cm = [row.rstrip().split("\t")[1:] for row in cm_s]
+    write_cm_R(cm, h_rel, dn)
 
 
 if __name__=="__main__":

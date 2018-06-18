@@ -1,17 +1,134 @@
 library(ggplot2)
-file1 = "../result/cm"
-file2 = "../result/cm_baseline"
+library(stringr)  # for having \n in legend title
+
+# run data_util.py first to obtain the *_cm files
+
+file1 = "../result/compa_trp_cm"
+file2 = "../result/segcnn_trp_cm"
 f1 = read.table(file1, header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
 f2 = read.table(file2, header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
-f_diff = data.frame(Gold=f1$Gold, System=f1$System, value=f1$value - f2$value)
-
+f_diff = data.frame(Gold=f1$Gold, System=f1$System, value=round(f1$value - f2$value, 1))
 cm = ggplot(data = f_diff, aes(x=System, y=Gold, fill=value)) +
   geom_tile(color="white") +
-  #scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Pearson\nCorrelation") +
-  scale_fill_gradient2(low = "blue", high = "red", mid = "white", space = "Lab", name="Count difference") +
+  scale_fill_gradient2(low = "green", high = "red", mid = "white", space = "Lab", name="Comp\n - SegCNN") +
   theme_minimal()+
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 12, hjust = 1)) +
+  
   coord_fixed() +
-  geom_text(aes(System, Gold, label = value), color = "black", size = 4)
+  geom_text(aes(System, Gold, label = value), color = "black", size = 6) +
+  scale_y_discrete(limits = rev(levels(f_diff$Gold))) +
+  scale_x_discrete(position = "top")
+ggsave("compa_trp_cm_diff.pdf", plot=cm, width = 7, height = 5)
 
-ggsave("cm_diff_example.pdf", plot=cm, width = 7, height = 5)
+file1 = "../result/compa_tep_cm"
+file2 = "../result/segcnn_tep_cm"
+f1 = read.table(file1, header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
+f2 = read.table(file2, header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
+f_diff = data.frame(Gold=f1$Gold, System=f1$System, value=round(f1$value - f2$value, 1))
+cm = ggplot(data = f_diff, aes(x=System, y=Gold, fill=value)) +
+  geom_tile(color="white") +
+  scale_fill_gradient2(low = "green", high = "red", mid = "white", space = "Lab", name="Comp\n - SegCNN") +
+  theme_minimal()+
+  coord_fixed() +
+  geom_text(aes(System, Gold, label = value), color = "black", size = 7) +
+  scale_y_discrete(limits = rev(levels(f_diff$Gold))) +
+  scale_x_discrete(position = "top")
+ggsave("compa_tep_cm_diff.pdf", plot=cm, width = 7, height = 5)
+
+file1 = "../result/compa_pp_cm"
+file2 = "../result/segcnn_pp_cm"
+f1 = read.table(file1, header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
+f2 = read.table(file2, header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
+f_diff = data.frame(Gold=f1$Gold, System=f1$System, value=round(f1$value - f2$value, 1))
+cm = ggplot(data = f_diff, aes(x=System, y=Gold, fill=value)) +
+  geom_tile(color="white") +
+  scale_fill_gradient2(low = "green", high = "red", mid = "white", space = "Lab", name="Comp\n - SegCNN") +
+  theme_minimal()+
+  
+  coord_fixed() +
+  geom_text(aes(System, Gold, label = value), color = "black", size = 8) +
+  scale_y_discrete(limits = rev(levels(f_diff$Gold))) +
+  scale_x_discrete(position = "top")
+ggsave("compa_pp_cm_diff.pdf", plot=cm, width = 7, height = 5)
+
+
+
+file1 = "../result/semclass_trp_cm"
+file2 = "../result/segcnn_trp_cm"
+f1 = read.table(file1, header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
+f2 = read.table(file2, header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
+f_diff = data.frame(Gold=f1$Gold, System=f1$System, value=round(f1$value - f2$value, 1))
+cm = ggplot(data = f_diff, aes(x=System, y=Gold, fill=value)) +
+  geom_tile(color="white") +
+  scale_fill_gradient2(low = "green", high = "red", mid = "white", space = "Lab", name="SemClass\n - SegCNN") +
+  theme_minimal()+
+  coord_fixed() +
+  geom_text(aes(System, Gold, label = value), color = "black", size = 6) +
+  scale_y_discrete(limits = rev(levels(f_diff$Gold))) +
+  scale_x_discrete(position = "top")
+ggsave("semclass_trp_cm_diff.pdf", plot=cm, width = 7, height = 5)
+
+file1 = "../result/semclass_tep_cm"
+file2 = "../result/segcnn_tep_cm"
+f1 = read.table(file1, header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
+f2 = read.table(file2, header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
+f_diff = data.frame(Gold=f1$Gold, System=f1$System, value=round(f1$value - f2$value, 1))
+cm = ggplot(data = f_diff, aes(x=System, y=Gold, fill=value)) +
+  geom_tile(color="white") +
+  scale_fill_gradient2(low = "green", high = "red", mid = "white", space = "Lab", name="SemClass\n - SegCNN") +
+  theme_minimal()+
+  
+  coord_fixed() +
+  geom_text(aes(System, Gold, label = value), color = "black", size = 7) +
+  scale_y_discrete(limits = rev(levels(f_diff$Gold))) +
+  scale_x_discrete(position = "top")
+ggsave("semclass_tep_cm_diff.pdf", plot=cm, width = 7, height = 5)
+
+
+file1 = "../result/pmi_trp_cm"
+file2 = "../result/segcnn_trp_cm"
+f1 = read.table(file1, header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
+f2 = read.table(file2, header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
+f_diff = data.frame(Gold=f1$Gold, System=f1$System, value=round(f1$value - f2$value, 1))
+cm = ggplot(data = f_diff, aes(x=System, y=Gold, fill=value)) +
+  geom_tile(color="white") +
+  scale_fill_gradient2(low = "green", high = "red", mid = "white", space = "Lab", name="PMI\n - SegCNN") +
+  theme_minimal()+
+  
+  coord_fixed() +
+  geom_text(aes(System, Gold, label = value), color = "black", size = 6) +
+  scale_y_discrete(limits = rev(levels(f_diff$Gold))) +
+  scale_x_discrete(position = "top")
+ggsave("pmi_trp_cm_diff.pdf", plot=cm, width = 7, height = 5)
+file1 = "../result/pmi_tep_cm"
+file2 = "../result/segcnn_tep_cm"
+f1 = read.table(file1, header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
+f2 = read.table(file2, header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
+f_diff = data.frame(Gold=f1$Gold, System=f1$System, value=round(f1$value - f2$value, 1))
+cm = ggplot(data = f_diff, aes(x=System, y=Gold, fill=value)) +
+  geom_tile(color="white") +
+  scale_fill_gradient2(low = "green", high = "red", mid = "white", space = "Lab", name="PMI\n - SegCNN") +
+  theme_minimal()+
+  
+  coord_fixed() +
+  geom_text(aes(System, Gold, label = value), color = "black", size = 7) +
+  scale_y_discrete(limits = rev(levels(f_diff$Gold))) +
+  scale_x_discrete(position = "top")
+ggsave("pmi_tep_cm_diff.pdf", plot=cm, width = 7, height = 5)
+file1 = "../result/pmi_pp_cm"
+file2 = "../result/segcnn_pp_cm"
+f1 = read.table(file1, header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
+f2 = read.table(file2, header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
+f_diff = data.frame(Gold=f1$Gold, System=f1$System, value=round(f1$value - f2$value, 1))
+cm = ggplot(data = f_diff, aes(x=System, y=Gold, fill=value)) +
+  geom_tile(color="white") +
+  scale_fill_gradient2(low = "green", high = "red", mid = "white", space = "Lab", name="PMI\n - SegCNN") +
+  theme_minimal()+
+  coord_fixed() +
+  geom_text(aes(System, Gold, label = value), color = "black", size = 8) +
+  scale_y_discrete(limits = rev(levels(f_diff$Gold))) +
+  scale_x_discrete(position = "top")
+
+ggsave("pmi_pp_cm_diff.pdf", plot=cm, width = 7, height = 5)
+
+
+

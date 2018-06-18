@@ -150,8 +150,8 @@ def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, 
     hlen[cts]['c2'] = max(hlen[cts]['c2'], len(c2))
     hlen[cts]['mid'] = max(hlen[cts]['mid'], len(mid))
 
-    compa1 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_indication, scale_fac*0)  # *0: ignore feature
-    compa2 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_adr, scale_fac*0)  # *0: ignore feature
+    compa1 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_indication, scale_fac)  # *0: ignore feature
+    compa2 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_adr, scale_fac)  # *0: ignore feature
 
     if rel.lower().startswith("tr"):
         lexicon = lexica["trp"]
@@ -163,7 +163,7 @@ def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, 
         lexicon = None
         txt = None
 
-    semclass1, semclass2, semclass3, semclass4, semclass5 = semclass(txt, lexicon, rel, lemmatizer, scale_fac)
+    semclass1, semclass2, semclass3, semclass4, semclass5 = semclass(txt, lexicon, rel, lemmatizer, scale_fac*0)  # *0: ignore feature
     #semclass1, semclass2, semclass3, semclass4, semclass5 = [scale_fac]*5
 
     if c1s < c2s:
