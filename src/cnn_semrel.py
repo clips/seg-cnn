@@ -2,6 +2,7 @@
 This file was extensively rewritten from the sentence CNN code at https://github.com/yoonkim/CNN_sentence by Yoon Kim
 """
 from cnn_classes import LeNetConvPoolLayer, MLPDropout
+from file_util import get_file_list
 
 __author__= ["Yuan Luo (yuan.hypnos.luo@gmail.com)", "Simon Suster"]
 
@@ -19,9 +20,12 @@ import time
 import stats_util as su
 warnings.filterwarnings("ignore")   
 
-htrp_rel = {'TrIP':1, 'TrWP':2, 'TrCP':3, 'TrAP':4, 'TrNAP':5, 'None':0}
-htep_rel = {'TeRP':1, 'TeCP':2, 'None':0}
-hpp_rel = {'PIP':1, 'None':0}
+htrp_rel = {'TrIP': 1, 'TrWP': 2, 'TrCP': 3, 'TrAP': 4, 'TrNAP': 5, 'None': 0}
+inv_htrp_rel = {i: name for name, i in htrp_rel.items()}
+htep_rel = {'TeRP': 1, 'TeCP': 2, 'None': 0}
+inv_htep_rel = {i: name for name, i in htep_rel.items()}
+hpp_rel = {'PIP': 1, 'None': 0}
+inv_hpp_rel = {i: name for name, i in hpp_rel.items()}
 
 
 #different non-linearities
@@ -61,7 +65,9 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
                    conv_non_linear="relu",
                    activations=[Iden],
                    sqr_norm_lim=9,
-                   non_static=True):
+                   non_static=True,
+                   relname=None
+                   ):
     """
     Train a simple conv net
     img_h = sentence length (padded where necessary)
@@ -351,6 +357,7 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
         if dev_mif >= best_dev_perf:
             best_dev_perf = dev_mif
             test_pred = test_model_all(c1_te,c2_te,prec_te,mid_te,succ_te,compa1_te,compa2_te,semclass1_te,semclass2_te,semclass3_te,semclass4_te,semclass5_te)
+            test_preds = extract_preds(rel_te, test_pred, relname)
             test_errors = test_pred != y_te
             err_ind = [j for j,x in enumerate(test_errors) if x==1]
             test_cm = su.confMat(y_te, test_pred, hidden_units[1])
@@ -362,7 +369,55 @@ def train_conv_net(datasets, rel_tr, rel_te, rel_de, hlen,
             mif_de = dev_mif
             print('mipre %s, mirec %s, mif %s' % (mipre, mirec, mif))
     cPickle.dump([y_te,test_pred], open(fnres, "wb"))
-    return (mipre, mirec, mif, mipre_de, mirec_de, mif_de, test_cm)
+    return (mipre, mirec, mif, mipre_de, mirec_de, mif_de, test_cm, test_preds)
+
+def extract_preds(rel, pred, relname):
+    """
+    :param rel: rel_de, rel_te or rel_st
+    :param pred: test_pred, dev_pred, st_pred
+    :param relname: "trp", "tep" or "pp"
+    :return: {fn1: [ln1, ln2, ...]}
+    """
+    preds = defaultdict(list)
+    if relname == "trp":
+        inv_d_rel = inv_htrp_rel
+    elif relname == "tep":
+        inv_d_rel = inv_htep_rel
+    elif relname == "pp":
+        inv_d_rel = inv_hpp_rel
+    else:
+        raise NotImplementedError
+
+    # write out non-None predictions
+    assert len(rel) == len(pred)
+    for c, i in enumerate(rel):
+        r = inv_d_rel[pred[c]]
+        if r == "None":
+            continue
+        # sent as an unannotated list
+        un_sent = i["sen"].replace("[ ", "").replace(" ]treatment", "").replace(" ]problem", "").replace(" ]test",
+                                                                                                         "").split()
+        # get iid: '0449.rel:43 (6,7) (12,13)'
+        inst_id = i["iid"]
+        fname = inst_id.split(":")[0]
+        ln, local_c1_id, local_c2_id = inst_id.split(":")[1].split(" ")
+        local_c1_id = eval(local_c1_id)
+        local_c2_id = eval(local_c2_id)
+        c1_str = " ".join(un_sent[local_c1_id[0]:local_c1_id[1]])
+        c2_str = " ".join(un_sent[local_c2_id[0]:local_c2_id[1]])
+        # c="antibiotics" 80:15 80:15||r="TrAP"||c="left arm phlebitis" 80:8 80:10
+        ln_out = "c=\"{c1_str}\" {ln}:{local_c1_id_s} {ln}:{local_c1_id_e}||r=\"{r}\"||c=\"{c2_str}\" {ln}:{local_c2_id_s} {ln}:{local_c2_id_e}".format(
+            c1_str=c1_str,
+            ln=int(ln) + 1,
+            local_c1_id_s=local_c1_id[0],
+            local_c1_id_e=local_c1_id[1] - 1,  # reduce last index by one
+            r=r,
+            c2_str=c2_str,
+            local_c2_id_s=local_c2_id[0],
+            local_c2_id_e=local_c2_id[1] - 1)
+        preds[fname].append(ln_out)
+
+    return preds
 
 def shared_dataset(data_xy, iid=None, borrow=True):
         """ Function that loads the dataset into shared variables
@@ -645,6 +700,19 @@ def convert_write_cm_R(result_f, h_rel, dn):
     cm = [row.rstrip().split("\t")[1:] for row in cm_s]
     write_cm_R(cm, h_rel, dn)
 
+def write_preds(dirname, preds, add_missing_from=None):
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+    for fn, pred in preds.items():
+        with open(dirname+fn, "w") as f_out:
+            for p in pred:
+                f_out.write(p+"\n")
+    if add_missing_from is not None:
+        fns = {os.path.basename(f) for f in get_file_list(add_missing_from)} - set(preds.keys())
+        for fn in fns:
+            with open(dirname+fn, "w") as f_out:
+                f_out.write("")
+
 
 if __name__=="__main__":
     img_w = sys.argv[3]
@@ -725,7 +793,7 @@ if __name__=="__main__":
         mif_de_runs = []
         cm_te_runs = []
         for n_run in range(n_runs):
-            (mipre, mirec, mif, mipre_de, mirec_de, mif_de, test_cm) = train_conv_net(trp_data, trp_rel_tr, trp_rel_te, trp_rel_de,
+            (mipre, mirec, mif, mipre_de, mirec_de, mif_de, test_cm, test_preds) = train_conv_net(trp_data, trp_rel_tr, trp_rel_te, trp_rel_de,
                                                  hlen['problem_treatment'],
                                                  U,
                                                  fnres='../result/trp_img%s_nhu%s_pad%s.p' % (img_w, l1_nhu, pad),
@@ -740,7 +808,9 @@ if __name__=="__main__":
                                                  sqr_norm_lim=9,
                                                  non_static=non_static,
                                                  batch_size=50,
-                                                 dropout_rate=[0.0])
+                                                 dropout_rate=[0.0],
+                                                 relname="trp")
+            write_preds("/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets/i2b2-2010/evaluation/system/test/trp/", test_preds)
             print("msg: trp img_w: %s, l1_nhu: %s, pad: %s, mipre: %s, mirec: %s, mif: %s, mipre_de: %s, mirec_de: %s, mif_de: %s" % (img_w, l1_nhu, pad, mipre, mirec, mif, mipre_de, mirec_de, mif_de))
             mipre_runs.append(mipre)
             mirec_runs.append(mirec)
@@ -762,7 +832,7 @@ if __name__=="__main__":
         mif_de_runs = []
         cm_te_runs = []
         for n_run in range(n_runs):
-            (mipre, mirec, mif, mipre_de, mirec_de, mif_de, test_cm) = train_conv_net(tep_data,tep_rel_tr, tep_rel_te, tep_rel_de,
+            (mipre, mirec, mif, mipre_de, mirec_de, mif_de, test_cm, test_preds) = train_conv_net(tep_data,tep_rel_tr, tep_rel_te, tep_rel_de,
                                                  hlen['problem_test'],
                                                  U,
                                                  fnres='../result/tep_img%s_nhu%s_pad%s.p' % (img_w, l1_nhu, pad),
@@ -776,7 +846,11 @@ if __name__=="__main__":
                                                  sqr_norm_lim=9,
                                                  non_static=non_static,
                                                  batch_size=50,
-                                                 dropout_rate=[0.0])
+                                                 dropout_rate=[0.0],
+                                                 relname="tep")
+            write_preds(
+                "/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets/i2b2-2010/evaluation/system/test/tep/",
+                test_preds)
             print("msg: tep img_w: %s, l1_nhu: %s, pad: %s, mipre: %s, mirec: %s, mif: %s, mipre_de: %s, mirec_de: %s, mif_de: %s" % (img_w, l1_nhu, pad, mipre, mirec, mif, mipre_de, mirec_de, mif_de))
             mipre_runs.append(mipre)
             mirec_runs.append(mirec)
@@ -798,7 +872,7 @@ if __name__=="__main__":
         mif_de_runs = []
         cm_te_runs = []
         for n_run in range(n_runs):
-            (mipre, mirec, mif, mipre_de, mirec_de, mif_de, test_cm) = train_conv_net(pp_data, pp_rel_tr, pp_rel_te, pp_rel_de,
+            (mipre, mirec, mif, mipre_de, mirec_de, mif_de, test_cm, test_preds) = train_conv_net(pp_data, pp_rel_tr, pp_rel_te, pp_rel_de,
                                                  hlen['problem_problem'],
                                                  U,
                                                  fnres='../result/pp_img%s_nhu%s_pad%s.p' % (img_w, l1_nhu, pad),
@@ -812,7 +886,11 @@ if __name__=="__main__":
                                                  sqr_norm_lim=9,
                                                  non_static=non_static,
                                                  batch_size=50,
-                                                 dropout_rate=[0.0])
+                                                 dropout_rate=[0.0],
+                                                 relname="pp")
+            write_preds(
+                "/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets/i2b2-2010/evaluation/system/test/pp/",
+                test_preds)
             print("msg: pp img_w: %s, l1_nhu: %s, pad: %s, mipre: %s, mirec: %s, mif: %s, mipre_de: %s, mirec_de: %s, mif_de: %s" % (img_w, l1_nhu, pad, mipre, mirec, mif, mipre_de, mirec_de, mif_de))
             mipre_runs.append(mipre)
             mirec_runs.append(mirec)
