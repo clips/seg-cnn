@@ -5,7 +5,7 @@ from file_util import get_file_list
 
 import numpy as np
 import cPickle
-from collections import defaultdict
+from collections import defaultdict, Counter
 import re, os
 from nltk.stem import WordNetLemmatizer
 
@@ -20,7 +20,6 @@ pp_rel = ['PIP']
 dosages = ['mg', 'bid', 'prn', 'qd', 'po', 'tid', 'qhs', 'qid', 'qod']
 
 drug_to_id, id_to_indication, id_to_adr = read_drugbank()
-
 
 def load_stoplist(fn):
     ## in case you want to use stopword list, not really needed
@@ -150,8 +149,8 @@ def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, 
     hlen[cts]['c2'] = max(hlen[cts]['c2'], len(c2))
     hlen[cts]['mid'] = max(hlen[cts]['mid'], len(mid))
 
-    compa1 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_indication, scale_fac)  # *0: ignore feature
-    compa2 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_adr, scale_fac)  # *0: ignore feature
+    compa1 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_indication, scale_fac*0)  # *0: ignore feature
+    compa2 = compatibility(c1, c2, c1t, c2t, rel, drug_to_id, id_to_adr, scale_fac*0)  # *0: ignore feature
 
     if rel.lower().startswith("tr"):
         lexicon = lexica["trp"]
@@ -163,7 +162,7 @@ def build_inst(iid, c1s, c1e, c2s, c2e, sen, vocab, hlen, rel='None', padlen=0, 
         lexicon = None
         txt = None
 
-    semclass1, semclass2, semclass3, semclass4, semclass5 = semclass(txt, lexicon, rel, lemmatizer, scale_fac*0)  # *0: ignore feature
+    semclass1, semclass2, semclass3, semclass4, semclass5 = semclass(txt, lexicon, rel, lemmatizer, scale_fac)  # *0: ignore feature
     #semclass1, semclass2, semclass3, semclass4, semclass5 = [scale_fac]*5
 
     if c1s < c2s:
@@ -419,7 +418,14 @@ def build_train_test_dev(cdn='/mnt/b5320167-5dbd-4498-bf34-173ac5338c8d/Datasets
     trp_rel_tr = trp_beth_tr + trp_partners_tr + trp_fromtest_tr
     tep_rel_tr = tep_beth_tr + tep_partners_tr + tep_fromtest_tr
     pp_rel_tr = pp_beth_tr + pp_partners_tr + pp_fromtest_tr
-    
+
+    compa_counter1 = Counter()
+    compa_counter2 = Counter()
+    for i in trp_rel_tr + trp_rel_de + trp_rel_te:
+        compa_counter1[i["compa1"]]+=1
+        compa_counter2[i["compa2"]]+=1
+    print(compa_counter1)
+    print(compa_counter2)
     return trp_rel_tr, tep_rel_tr, pp_rel_tr, trp_rel_te, tep_rel_te, pp_rel_te, trp_rel_de, tep_rel_de, pp_rel_de, vocab, hlen
 
 
