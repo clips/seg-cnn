@@ -7,8 +7,7 @@ import cnn_preprocess as cp
 #print("Setting scale factor to 0: ignoring all external features.")
 #scale_fac=0
 
-print("Multiplying semclass with 0; getting compa")
-scale_fac=100
+scale_fac=100  # will use only semantic classes
 
 if sys.argv[1] == "trp":
     print("Creating data with TRP optimal params.")
